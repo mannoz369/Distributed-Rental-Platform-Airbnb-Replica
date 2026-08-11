@@ -1,5 +1,13 @@
-const User = require("./user.model.js");
 const authService = require("./auth.service.js");
+const tokenService = require("./token.service.js");
+
+const getSafeRedirectUrl = (redirectUrl) => {
+    if (typeof redirectUrl !== "string" || !redirectUrl.startsWith("/") || redirectUrl.startsWith("//")) {
+        return "/listings";
+    }
+
+    return redirectUrl;
+};
 
 
 module.exports.renderSignupForm = (req,res)=>{
@@ -10,16 +18,10 @@ module.exports.renderSignupForm = (req,res)=>{
 module.exports.signup = async(req,res)=>{
     try{
         let {username, email, password} = req.body;
-        const newUser = new User({email,username});
-        const registeredUser = await authService.registerUser(newUser, password);
-        console.log(registeredUser);
-        req.login(registeredUser,(err)=>{
-            if(err){
-                return next(err);
-            }
-            req.flash("success","Welcome to Wanderlust!");
-            res.redirect("/listings");
-        });
+        const { tokens } = await authService.registerUser({ username, email, password });
+        tokenService.setAuthCookies(res, tokens);
+        req.flash("success","Welcome to Wanderlust!");
+        res.redirect("/listings");
         
     } catch(e){
         req.flash("error", e.message);
@@ -29,22 +31,53 @@ module.exports.signup = async(req,res)=>{
 
 
 module.exports.renderLoginForm = (req,res)=>{
-    res.render("users/login.ejs");
+    res.render("users/login.ejs", { redirectUrl: req.query.redirectUrl || "" });
 };
 
 
 module.exports.login = async(req,res)=>{
-    req.flash("success","Welcome to Wanderlust! You are logged in.");
-    let redirectUrl = res.locals.redirectUrl || "/listings";
-    res.redirect(redirectUrl);
+    try {
+        const { username, password, redirectUrl } = req.body;
+        const { tokens } = await authService.loginUser({ username, password });
+        tokenService.setAuthCookies(res, tokens);
+        req.flash("success","Welcome to Wanderlust! You are logged in.");
+        res.redirect(getSafeRedirectUrl(redirectUrl));
+    } catch(e) {
+        req.flash("error", e.message);
+        res.redirect("/login");
+    }
 };
 
-module.exports.logout = ( req, res, next) => {
-    req.logOut((err) => {
-        if(err){
-            return next(err);
-        }
-        req.flash("success", "You are Logged out!");
-        res.redirect("/listings")
-    })
+module.exports.refresh = async (req, res) => {
+    try {
+        const refreshToken = req.cookies[tokenService.REFRESH_TOKEN_COOKIE];
+        const { tokens, user } = await authService.refreshAuth(refreshToken);
+        tokenService.setAuthCookies(res, tokens);
+        res.json({ user: { id: user._id, username: user.username, email: user.email, role: user.role } });
+    } catch(e) {
+        tokenService.clearAuthCookies(res);
+        res.status(401).json({ message: e.message });
+    }
+};
+
+module.exports.me = (req, res) => {
+    if (!req.user) {
+        return res.status(401).json({ message: "Not authenticated" });
+    }
+
+    res.json({
+        user: {
+            id: req.user._id.toString(),
+            username: req.user.username,
+            email: req.user.email,
+            role: req.user.role,
+        },
+    });
+};
+
+module.exports.logout = async ( req, res) => {
+    await authService.removeRefreshToken(req.cookies[tokenService.REFRESH_TOKEN_COOKIE]);
+    tokenService.clearAuthCookies(res);
+    req.flash("success", "You are Logged out!");
+    res.redirect("/listings")
 };

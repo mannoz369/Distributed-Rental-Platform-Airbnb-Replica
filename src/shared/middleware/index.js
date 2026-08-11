@@ -10,19 +10,15 @@ const {
 
 
 module.exports.isLoggedin = (req , res, next) => {
-    if(!req.isAuthenticated()){
-        //redirect info
-        req.session.redirectUrl = req.originalUrl;
+    if(!req.user){
         req.flash("error","You must login!");
-        return res.redirect("/login");
+        return res.redirect(`/login?redirectUrl=${encodeURIComponent(req.originalUrl)}`);
       }
       next();
 };
 
 module.exports.saveRedirectUrl = (req,res,next) =>{
-  if(req.session.redirectUrl){
-    res.locals.redirectUrl = req.session.redirectUrl
-  }
+  res.locals.redirectUrl = req.body.redirectUrl || req.query.redirectUrl || "";
   next();
 };
 
