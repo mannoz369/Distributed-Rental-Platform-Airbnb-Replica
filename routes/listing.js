@@ -17,6 +17,8 @@ router
 //New Route
 router.get("/new", isLoggedin, listingController.renderNewForm);
 
+router.get("/my-properties", isLoggedin, wrapAsync(listingController.myProperties));
+
 router
 .route("/:id")
 .get(wrapAsync(listingController.showListing))

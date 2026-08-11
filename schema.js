@@ -16,3 +16,16 @@ module.exports.reviewSchema = Joi.object({
         comment: Joi.string().required(),
      }).required(),
 });
+
+module.exports.bookingSchema = Joi.object({
+    booking: Joi.object({
+        checkIn: Joi.date().iso().required(),
+        checkOut: Joi.date().iso().greater(Joi.ref("checkIn")).required(),
+    }).required(),
+});
+
+module.exports.cancelBookingSchema = Joi.object({
+    cancel: Joi.object({
+        confirmation: Joi.string().trim().lowercase().valid("confirm").required(),
+    }).required(),
+});
