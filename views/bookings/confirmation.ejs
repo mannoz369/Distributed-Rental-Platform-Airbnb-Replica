@@ -1,9 +1,9 @@
 <% layout("layouts/boilerplate")%>
 
-<div class="row mt-4">
-  <div class="col-8 offset-2">
+<div class="row mt-4 booking-detail-page">
+  <div class="col-8 offset-2 booking-detail-shell">
     <h3>Booking confirmed</h3>
-    <div class="border rounded p-4 mt-3">
+    <div class="border rounded p-4 mt-3 booking-detail-card">
       <h4><%= booking.listing.title %></h4>
       <p class="text-muted mb-3"><%= booking.listing.location %>, <%= booking.listing.country %></p>
       <p><b>Guest:</b> <%= booking.guestName %> (<%= booking.guestEmail %>)</p>

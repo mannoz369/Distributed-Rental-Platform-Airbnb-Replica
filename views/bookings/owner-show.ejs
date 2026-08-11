@@ -1,9 +1,9 @@
 <% layout("layouts/boilerplate")%>
 
-<div class="row mt-4">
-  <div class="col-8 offset-2">
+<div class="row mt-4 booking-detail-page">
+  <div class="col-8 offset-2 booking-detail-shell">
     <h3>Booking details</h3>
-    <div class="border rounded p-4 mt-3">
+    <div class="border rounded p-4 mt-3 booking-detail-card">
       <h4><%= booking.listing ? booking.listing.title : "Deleted listing" %></h4>
       <% if(booking.listing) { %>
         <p class="text-muted"><%= booking.listing.location %>, <%= booking.listing.country %></p>

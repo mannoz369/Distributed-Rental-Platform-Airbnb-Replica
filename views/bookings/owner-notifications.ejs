@@ -1,14 +1,14 @@
 <% layout("layouts/boilerplate")%>
 
-<div class="row mt-4">
-  <div class="col-10 offset-1">
+<div class="row mt-4 bookings-page">
+  <div class="col-10 offset-1 bookings-shell">
     <h3>Booking notifications</h3>
     <% if(bookings.length === 0) { %>
       <p class="text-muted mt-3">No bookings for your properties yet.</p>
     <% } %>
     <div class="list-group mt-3">
       <% for(booking of bookings) { %>
-        <a href="/owner/bookings/<%= booking._id %>" class="list-group-item list-group-item-action d-flex justify-content-between align-items-center">
+        <a href="/owner/bookings/<%= booking._id %>" class="list-group-item list-group-item-action d-flex justify-content-between align-items-center owner-booking-row">
           <span>
             <b><%= booking.listing ? booking.listing.title : "Deleted listing" %></b>
             <br>
