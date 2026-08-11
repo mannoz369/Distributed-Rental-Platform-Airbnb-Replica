@@ -23,6 +23,10 @@
             <p>&#8377; <%= listing.price.toLocaleString("en-IN") %></p>
             <p><%= listing.location %></p>
             <p><%= listing.country %> </p>
+            <a href="#booking-section" class="btn book-jump-btn mobile-book-jump">
+              <i class="fa-regular fa-calendar-check"></i>
+              Book this stay
+            </a>
           </div>
         </div>
 
@@ -61,7 +65,7 @@
             <div class="row">
               <p><b>All reviews</b></p>
               <% for(review of listing.reviews){ %>
-                <div class="card col-5 ms-2 mb-3">
+                <div class="card col-5 ms-2 mb-3 review-card">
                   <div class="card-body">
                     <h5 class="card-title">@<%= review.author.username %></h5>
                     <p class="starability-result card-text" data-rating="<%= review.rating %>"></p>
@@ -84,7 +88,7 @@
         </div>
       </div>
 
-      <div class="col-lg-4 offset-lg-1 mb-4">
+      <div class="col-lg-4 offset-lg-1 mb-4" id="booking-section">
         <aside class="booking-sidebar">
           <div class="booking-calendar booking-calendar-compact border rounded p-3" data-booked-dates='<%- JSON.stringify(bookedDates || []) %>'>
             <div class="booking-calendar-head mb-2">
@@ -222,7 +226,7 @@
       <div class="row">
         <p><b>All reviews</b></p>
         <% for(review of listing.reviews){ %>
-          <div class="card col-5 ms-2 mb-3">
+          <div class="card col-5 ms-2 mb-3 review-card">
             <div class="card-body">
               <h5 class="card-title">@<%= review.author.username %></h5>
               <p class="starability-result card-text" data-rating="<%= review.rating %>"></p>
