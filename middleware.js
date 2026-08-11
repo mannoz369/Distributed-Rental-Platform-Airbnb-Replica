@@ -1,7 +1,7 @@
 const Listing = require("./models/listing.js");
 const Review = require("./models/review.js");
 const ExpressErrors = require("./utils/ExpressErros.js");
-const { listingSchema, reviewSchema } = require("./schema.js");
+const { listingSchema, reviewSchema, bookingSchema, cancelBookingSchema } = require("./schema.js");
 
 
 module.exports.isLoggedin = (req , res, next) => {
@@ -51,6 +51,30 @@ module.exports.validateReview = (req,res,next)=>{
   if (error) {
     let errMsg = error.details.map((el)=> el.message).join(",");
     throw new ExpressErrors(400, result,errMsg)
+    
+  }else{
+    next();
+  }
+};
+
+module.exports.validateBooking = (req,res,next)=>{
+  let {error} = bookingSchema.validate(req.body); 
+  
+  if (error) {
+    let errMsg = error.details.map((el)=> el.message).join(",");
+    throw new ExpressErrors(400, errMsg)
+    
+  }else{
+    next();
+  }
+};
+
+module.exports.validateCancelBooking = (req,res,next)=>{
+  let {error} = cancelBookingSchema.validate(req.body); 
+  
+  if (error) {
+    req.flash("error", "Type confirm to cancel this booking.");
+    return res.redirect(`/bookings/${req.params.bookingId}/cancel`);
     
   }else{
     next();

@@ -1,12 +1,56 @@
 const Listing = require("../models/listing.js");
+const Booking = require("../models/booking.js");
 const mbxGeocoding= require('@mapbox/mapbox-sdk/services/geocoding');
 const mapToken = process.env.MAP_TOKEN;
 const geocodingClient = mbxGeocoding({ accessToken: mapToken});
 
+const formatDateKey = (date) => {
+  const localDate = new Date(date);
+  const year = localDate.getFullYear();
+  const month = String(localDate.getMonth() + 1).padStart(2, "0");
+  const day = String(localDate.getDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
+};
+
 
 module.exports.index = async(req,res) =>{
-    const allListings = await Listing.find({});
-    res.render("\listings/index.ejs",{allListings});
+    const searchQuery = (req.query.search || "").trim();
+    let filter = {};
+
+    if (searchQuery) {
+      const escapedSearch = searchQuery.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+      const searchRegex = new RegExp(escapedSearch, "i");
+      filter = {
+        $or: [
+          { location: searchRegex },
+          { country: searchRegex },
+        ],
+      };
+    }
+
+    const allListings = await Listing.find(filter);
+
+    if (searchQuery && allListings.length === 0) {
+      req.flash("error", `No properties in "${searchQuery}" yet.`);
+      return res.redirect("/listings");
+    }
+
+    res.render("listings/index.ejs",{
+      allListings,
+      searchQuery,
+      pageTitle: "Explore stays",
+      emptyMessage: "No properties are available yet.",
+    });
+};
+
+module.exports.myProperties = async(req,res) =>{
+    const allListings = await Listing.find({ owner: req.user._id });
+    res.render("listings/index.ejs",{
+      allListings,
+      searchQuery: "",
+      pageTitle: "My Properties",
+      emptyMessage: "You have not listed any properties yet.",
+    });
 };
 
 module.exports.renderNewForm = (req, res) => {
@@ -18,10 +62,24 @@ module.exports.showListing = async (req, res) => {
     const listing = await Listing.findById(id).populate({path: "reviews", populate: { path: "author",},}).populate("owner");
     if(!listing){
       req.flash("error", "Listing Requested not found!");
-      res.redirect("/listings");
+      return res.redirect("/listings");
     }
+    const bookings = await Booking.find({
+      listing: id,
+      status: "confirmed",
+    }).select("checkIn checkOut");
+    const bookedDates = bookings.flatMap((booking) => {
+      const dates = [];
+      const cursor = new Date(booking.checkIn);
+      const checkOut = new Date(booking.checkOut);
+      while (cursor <= checkOut) {
+        dates.push(formatDateKey(cursor));
+        cursor.setDate(cursor.getDate() + 1);
+      }
+      return dates;
+    });
     
-    res.render("listings/show.ejs", { listing });
+    res.render("listings/show.ejs", { listing, bookedDates });
   };
 
 module.exports.createListing = async (req, res,next) => {

@@ -17,10 +17,12 @@ const flash = require("connect-flash");
 const passport = require("passport")
 const LocalStrategy = require("passport-local");
 const User = require("./models/user.js")
+const Booking = require("./models/booking.js")
 
 const listingRoute = require("./routes/listing.js");
 const reviewRoute = require("./routes/review.js");
 const userRoute = require("./routes/user.js");
+const bookingRoute = require("./routes/booking.js");
 const { cookie } = require("express/lib/response.js");
 
 // const mongo_url = "mongodb://localhost:27017/wanderlust";
@@ -72,6 +74,10 @@ const sessionOptions={
 //     res.send("HI, I AM ROOT ");
 // });
 
+app.get("/",(req,res)=>{
+    res.redirect("/listings");
+});
+
 
 
 app.use(session(sessionOptions));
@@ -84,12 +90,23 @@ passport.use(new LocalStrategy(User.authenticate()));
 passport.serializeUser(User.serializeUser());
 passport.deserializeUser(User.deserializeUser());
 
-app.use((req, res,next)=>{
-    res.locals.success = req.flash("success");
-    res.locals.error= req.flash("error");
-    res.locals.currUser = req.user;
-    
-    next();
+app.use(async (req, res,next)=>{
+    try {
+        res.locals.success = req.flash("success");
+        res.locals.error= req.flash("error");
+        res.locals.currUser = req.user;
+        res.locals.ownerNotificationCount = 0;
+        if(req.user){
+            res.locals.ownerNotificationCount = await Booking.countDocuments({
+                owner: req.user._id,
+                ownerSeen: false,
+            });
+        }
+        
+        next();
+    } catch(err) {
+        next(err);
+    }
 });
 
 // app.get("/demouser", async(req,res)=>{
@@ -106,6 +123,7 @@ app.use((req, res,next)=>{
 
 app.use("/listings",listingRoute);
 app.use("/listings/:id/reviews",reviewRoute);
+app.use("/",bookingRoute);
 app.use("/",userRoute);
 
 

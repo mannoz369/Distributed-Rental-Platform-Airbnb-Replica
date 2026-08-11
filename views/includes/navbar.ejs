@@ -32,19 +32,68 @@
           
         </div>
         <div class="navbar-nav ms-auto">
-          <form class="d-flex" role="search">
-            <input class="form-control me-2 search-inp" type="search" placeholder="Search destinations">
+          <form class="d-flex" role="search" action="/listings" method="GET">
+            <input class="form-control me-2 search-inp" type="search" name="search" placeholder="Search city / country " value="<%= typeof searchQuery !== 'undefined' ? searchQuery : '' %>">
             <button class="btn btn-search" type="submit"><i class="fa-solid fa-magnifying-glass"></i>Search</button>
           </form>
         </div>
-        <div class="navbar-nav ms-auto">
-          <a class="nav-link" href="/listings/new">Wanderlust your home</a>
+        <div class="navbar-nav ms-auto align-items-md-center nav-account-cluster">
           <% if(!currUser) { %>
-          <a class="nav-link" href="/signup"><b>Sign Up</b></a>
-          <a class="nav-link" href="/login"><b>Login</b></a>
+          <div class="auth-actions">
+            <a class="nav-link auth-link" href="/signup"><b>Sign Up</b></a>
+            <a class="nav-link auth-link" href="/login"><b>Login</b></a>
+          </div>
           <% } %>
           <% if(currUser) { %>
-          <a class="nav-link" href="/logout"><b>Logout</b></a>
+          <a class="nav-link position-relative notification-link" href="/owner/bookings" title="Booking notifications">
+            <i class="fa-regular fa-bell"></i>
+            <% if(ownerNotificationCount > 0) { %>
+              <span class="position-absolute top-0 start-100 translate-middle badge rounded-pill bg-danger">
+                <%= ownerNotificationCount %>
+              </span>
+            <% } %>
+          </a>
+          <div class="dropdown user-menu">
+            <button class="btn user-menu-toggle dropdown-toggle" type="button" data-bs-toggle="dropdown" aria-expanded="false">
+              <!-- <i class="fa-solid fa-bars user-menu-lines"></i> -->
+              <i class="fa-regular fa-user"></i>
+            </button>
+            <ul class="dropdown-menu dropdown-menu-end user-dropdown">
+              <li class="user-dropdown-header">
+                <div class="user-avatar"><i class="fa-regular fa-user"></i></div>
+                <div>
+                  <div class="user-name"><%= currUser.username %></div>
+                  <div class="user-email"><%= currUser.email %></div>
+                </div>
+              </li>
+              <li><hr class="dropdown-divider"></li>
+              <li>
+                <a class="dropdown-item" href="/listings/new">
+                  <i class="fa-solid fa-house-chimney"></i>
+                  List your propertie
+                </a>
+              </li>
+              <li>
+                <a class="dropdown-item" href="/listings/my-properties">
+                  <i class="fa-solid fa-house-circle-check"></i>
+                  My Properties
+                </a>
+              </li>
+              <li>
+                <a class="dropdown-item" href="/bookings/my">
+                  <i class="fa-regular fa-calendar-check"></i>
+                  My Bookings
+                </a>
+              </li>
+              <li><hr class="dropdown-divider"></li>
+              <li>
+                <a class="dropdown-item logout-item" href="/logout" title="Logout">
+                  <i class="fa-solid fa-right-from-bracket"></i>
+                  Logout
+                </a>
+              </li>
+            </ul>
+          </div>
           <% } %>
         </div>
       </div>

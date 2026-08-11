@@ -1,0 +1,23 @@
+<% layout("layouts/boilerplate")%>
+
+<div class="row mt-4">
+  <div class="col-8 offset-2">
+    <h3>Booking details</h3>
+    <div class="border rounded p-4 mt-3">
+      <h4><%= booking.listing ? booking.listing.title : "Deleted listing" %></h4>
+      <% if(booking.listing) { %>
+        <p class="text-muted"><%= booking.listing.location %>, <%= booking.listing.country %></p>
+      <% } %>
+      <p><b>Status:</b> <span class="badge <%= booking.status === "confirmed" ? "text-bg-success" : "text-bg-secondary" %>"><%= booking.status %></span></p>
+      <p><b>Guest:</b> <%= booking.guestName %></p>
+      <p><b>Email:</b> <%= booking.guestEmail %></p>
+      <p><b>Check-in:</b> <%= booking.checkIn.toLocaleDateString("en-IN") %></p>
+      <p><b>Check-out:</b> <%= booking.checkOut.toLocaleDateString("en-IN") %></p>
+      <p><b>Nights:</b> <%= booking.nights %></p>
+      <p><b>Stay subtotal:</b> &#8377; <%= totals.subtotalPrice.toLocaleString("en-IN") %></p>
+      <p><b>GST (18%):</b> &#8377; <%= totals.gstAmount.toLocaleString("en-IN") %></p>
+      <p><b>Total:</b> &#8377; <%= totals.totalPrice.toLocaleString("en-IN") %></p>
+      <a href="/owner/bookings" class="btn btn-dark mt-2">Back to notifications</a>
+    </div>
+  </div>
+</div>

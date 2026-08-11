@@ -1,0 +1,27 @@
+<% layout("layouts/boilerplate")%>
+
+<div class="row mt-4">
+  <div class="col-10 offset-1">
+    <h3>Booking notifications</h3>
+    <% if(bookings.length === 0) { %>
+      <p class="text-muted mt-3">No bookings for your properties yet.</p>
+    <% } %>
+    <div class="list-group mt-3">
+      <% for(booking of bookings) { %>
+        <a href="/owner/bookings/<%= booking._id %>" class="list-group-item list-group-item-action d-flex justify-content-between align-items-center">
+          <span>
+            <b><%= booking.listing ? booking.listing.title : "Deleted listing" %></b>
+            <br>
+            <small><%= booking.guestName %> booked <%= booking.checkIn.toLocaleDateString("en-IN") %> - <%= booking.checkOut.toLocaleDateString("en-IN") %></small>
+          </span>
+          <span>
+            <% if(!booking.ownerSeen) { %>
+              <span class="badge text-bg-danger me-2">New</span>
+            <% } %>
+            <span class="badge <%= booking.status === "confirmed" ? "text-bg-success" : "text-bg-secondary" %>"><%= booking.status %></span>
+          </span>
+        </a>
+      <% } %>
+    </div>
+  </div>
+</div>

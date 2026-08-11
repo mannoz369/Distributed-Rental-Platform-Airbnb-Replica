@@ -1,0 +1,20 @@
+<% layout("layouts/boilerplate")%>
+
+<div class="row mt-4">
+  <div class="col-6 offset-3">
+    <h3>Cancel booking</h3>
+    <div class="border rounded p-4 mt-3">
+      <p>You are cancelling <b><%= booking.listing ? booking.listing.title : "this booking" %></b>.</p>
+      <p class="text-muted">Type <b>confirm</b> to cancel your booking.</p>
+      <form action="/bookings/<%= booking._id %>/cancel?_method=PATCH" method="POST" novalidate class="needs-validation">
+        <div class="mb-3">
+          <label for="confirmation" class="form-label">Confirmation</label>
+          <input id="confirmation" name="cancel[confirmation]" class="form-control" pattern="confirm" required>
+          <div class="invalid-feedback">Type confirm exactly.</div>
+        </div>
+        <button class="btn btn-danger">Cancel booking</button>
+        <a href="/bookings/my" class="btn btn-outline-dark">Keep booking</a>
+      </form>
+    </div>
+  </div>
+</div>
