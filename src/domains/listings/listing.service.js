@@ -1,9 +1,8 @@
-const mbxGeocoding = require("@mapbox/mapbox-sdk/services/geocoding");
-const Listing = require("./listing.model.js");
+const mongoose = require("mongoose");
 const Booking = require("../bookings/booking.model.js");
-const env = require("../../config/env.js");
-
-const geocodingClient = mbxGeocoding({ accessToken: env.MAP_TOKEN });
+const Review = require("../reviews/review.model.js");
+const authService = require("../auth/auth.service.js");
+const listingGrpcClient = require("./listing.grpc-client.js");
 
 const formatDateKey = (date) => {
   const localDate = new Date(date);
@@ -13,34 +12,100 @@ const formatDateKey = (date) => {
   return `${year}-${month}-${day}`;
 };
 
-const buildListingFilter = (searchQuery) => {
-  if (!searchQuery) {
-    return {};
+const objectId = (id) => new mongoose.Types.ObjectId(id);
+
+const isNotFoundError = (err) => {
+  return err?.code === 5 || /NOT_FOUND/i.test(err?.message || "");
+};
+
+const toGatewayUser = (user) => ({
+  _id: objectId(user.id),
+  id: user.id,
+  username: user.username,
+  email: user.email,
+  role: user.role || "guest",
+});
+
+const toGatewayListing = (listing) => {
+  if (!listing?.id) {
+    return null;
   }
 
-  const escapedSearch = searchQuery.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-  const searchRegex = new RegExp(escapedSearch, "i");
+  const ownerId = listing.owner_id ? objectId(listing.owner_id) : undefined;
   return {
-    $or: [{ location: searchRegex }, { country: searchRegex }],
+    _id: objectId(listing.id),
+    id: listing.id,
+    title: listing.title,
+    description: listing.description,
+    image: listing.image,
+    price: Number(listing.price || 0),
+    location: listing.location,
+    country: listing.country,
+    owner: ownerId,
+    geometry: listing.geometry,
+    status: listing.status || "active",
+    createdAt: listing.created_at,
+    updatedAt: listing.updated_at,
+    reviews: (listing.review_ids || []).map(objectId),
   };
 };
 
-const findListings = (searchQuery = "") => {
-  return Listing.find(buildListingFilter(searchQuery));
+const toGrpcListingInput = ({ listingInput, image }) => ({
+  title: listingInput.title,
+  description: listingInput.description,
+  price: Number(listingInput.price),
+  location: listingInput.location,
+  country: listingInput.country,
+  image: image || listingInput.image || {},
+});
+
+const findListings = async (searchQuery = "") => {
+  const response = await listingGrpcClient.searchListings({
+    search_query: searchQuery,
+    page: 1,
+    page_size: 100,
+  });
+
+  return response.listings.map(toGatewayListing);
 };
 
-const findListingsByOwner = (ownerId) => {
-  return Listing.find({ owner: ownerId });
+const findListingsByOwner = async (ownerId) => {
+  const response = await listingGrpcClient.getOwnerListings({
+    owner_id: ownerId.toString(),
+    page: 1,
+    page_size: 100,
+  });
+
+  return response.listings.map(toGatewayListing);
 };
 
-const findListingById = (id) => {
-  return Listing.findById(id);
+const findListingById = async (id) => {
+  try {
+    const response = await listingGrpcClient.getListing({ listing_id: id.toString() });
+    return toGatewayListing(response.listing);
+  } catch (err) {
+    if (isNotFoundError(err)) {
+      return null;
+    }
+
+    throw err;
+  }
 };
 
-const findListingDetails = (id) => {
-  return Listing.findById(id)
-    .populate({ path: "reviews", populate: { path: "author" } })
-    .populate("owner");
+const findListingDetails = async (id) => {
+  const listing = await findListingById(id);
+  if (!listing) {
+    return null;
+  }
+
+  const [owner, reviews] = await Promise.all([
+    authService.getUser(listing.owner.toString()).catch(() => null),
+    Review.find({ _id: { $in: listing.reviews || [] } }).populate("author"),
+  ]);
+
+  listing.owner = owner || { _id: listing.owner, username: "Unknown host", email: "" };
+  listing.reviews = reviews;
+  return listing;
 };
 
 const getBookedDatesForListing = async (listingId) => {
@@ -63,47 +128,68 @@ const getBookedDatesForListing = async (listingId) => {
   });
 };
 
-const geocodeLocation = async (location) => {
-  const response = await geocodingClient
-    .forwardGeocode({
-      query: location,
-      limit: 1,
-    })
-    .send();
-
-  return response.body.features[0].geometry;
-};
-
 const createListing = async ({ listingInput, ownerId, image }) => {
-  const newListing = new Listing(listingInput);
-  newListing.owner = ownerId;
-  newListing.image = image;
-  newListing.geometry = await geocodeLocation(listingInput.location);
-  return newListing.save();
+  const response = await listingGrpcClient.createListing({
+    owner_id: ownerId.toString(),
+    listing: toGrpcListingInput({ listingInput, image }),
+  });
+
+  return toGatewayListing(response.listing);
 };
 
-const updateListing = async ({ id, listingInput, image }) => {
-  const listing = await Listing.findByIdAndUpdate(id, { ...listingInput });
-  listing.geometry = await geocodeLocation(listingInput.location);
+const updateListing = async ({ id, ownerId, listingInput, image }) => {
+  const currentListing = await findListingById(id);
+  const response = await listingGrpcClient.updateListing({
+    listing_id: id.toString(),
+    owner_id: ownerId.toString(),
+    listing: toGrpcListingInput({
+      listingInput,
+      image: image || currentListing?.image,
+    }),
+  });
 
-  if (image) {
-    listing.image = image;
-  }
-
-  return listing.save();
+  return toGatewayListing(response.listing);
 };
 
-const deleteListing = (id) => {
-  return Listing.findByIdAndDelete(id);
+const deleteListing = ({ id, ownerId }) => {
+  return listingGrpcClient.deleteListing({
+    listing_id: id.toString(),
+    owner_id: ownerId.toString(),
+  });
+};
+
+const getListingForBooking = async (listingId) => {
+  return listingGrpcClient.getListingForBooking({ listing_id: listingId.toString() });
+};
+
+const addReviewReference = async ({ listingId, reviewId }) => {
+  const response = await listingGrpcClient.addReviewReference({
+    listing_id: listingId.toString(),
+    review_id: reviewId.toString(),
+  });
+
+  return toGatewayListing(response.listing);
+};
+
+const removeReviewReference = async ({ listingId, reviewId }) => {
+  const response = await listingGrpcClient.removeReviewReference({
+    listing_id: listingId.toString(),
+    review_id: reviewId.toString(),
+  });
+
+  return toGatewayListing(response.listing);
 };
 
 module.exports = {
+  addReviewReference,
   createListing,
   deleteListing,
   findListingById,
   findListingDetails,
   findListings,
   findListingsByOwner,
+  getListingForBooking,
   getBookedDatesForListing,
+  removeReviewReference,
   updateListing,
 };

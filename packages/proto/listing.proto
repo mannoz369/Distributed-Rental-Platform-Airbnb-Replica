@@ -1,0 +1,116 @@
+syntax = "proto3";
+
+package wanderlust.listing.v1;
+
+service ListingService {
+  rpc CreateListing(CreateListingRequest) returns (ListingResponse);
+  rpc UpdateListing(UpdateListingRequest) returns (ListingResponse);
+  rpc DeleteListing(DeleteListingRequest) returns (DeleteListingResponse);
+  rpc GetListing(GetListingRequest) returns (ListingResponse);
+  rpc SearchListings(SearchListingsRequest) returns (SearchListingsResponse);
+  rpc GetOwnerListings(GetOwnerListingsRequest) returns (SearchListingsResponse);
+  rpc GetListingForBooking(GetListingForBookingRequest) returns (ListingForBookingResponse);
+  rpc AddReviewReference(ReviewReferenceRequest) returns (ListingResponse);
+  rpc RemoveReviewReference(ReviewReferenceRequest) returns (ListingResponse);
+}
+
+message Image {
+  string url = 1;
+  string filename = 2;
+}
+
+message GeoPoint {
+  string type = 1;
+  repeated double coordinates = 2;
+}
+
+message Listing {
+  string id = 1;
+  string title = 2;
+  string description = 3;
+  Image image = 4;
+  int32 price = 5;
+  string location = 6;
+  string country = 7;
+  string owner_id = 8;
+  GeoPoint geometry = 9;
+  string status = 10;
+  string created_at = 11;
+  string updated_at = 12;
+  repeated string review_ids = 13;
+}
+
+message ListingInput {
+  string title = 1;
+  string description = 2;
+  int32 price = 3;
+  string location = 4;
+  string country = 5;
+  Image image = 6;
+}
+
+message CreateListingRequest {
+  string owner_id = 1;
+  ListingInput listing = 2;
+}
+
+message UpdateListingRequest {
+  string listing_id = 1;
+  string owner_id = 2;
+  ListingInput listing = 3;
+}
+
+message DeleteListingRequest {
+  string listing_id = 1;
+  string owner_id = 2;
+}
+
+message DeleteListingResponse {
+  bool deleted = 1;
+  string listing_id = 2;
+}
+
+message GetListingRequest {
+  string listing_id = 1;
+}
+
+message SearchListingsRequest {
+  string search_query = 1;
+  int32 page = 2;
+  int32 page_size = 3;
+}
+
+message GetOwnerListingsRequest {
+  string owner_id = 1;
+  int32 page = 2;
+  int32 page_size = 3;
+}
+
+message GetListingForBookingRequest {
+  string listing_id = 1;
+}
+
+message ReviewReferenceRequest {
+  string listing_id = 1;
+  string review_id = 2;
+}
+
+message ListingForBookingResponse {
+  string listing_id = 1;
+  string title = 2;
+  string owner_id = 3;
+  int32 nightly_price = 4;
+  string status = 5;
+  bool active = 6;
+}
+
+message ListingResponse {
+  Listing listing = 1;
+}
+
+message SearchListingsResponse {
+  repeated Listing listings = 1;
+  int32 page = 2;
+  int32 page_size = 3;
+  int32 total_count = 4;
+}

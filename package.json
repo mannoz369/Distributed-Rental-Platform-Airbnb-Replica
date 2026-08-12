@@ -7,12 +7,17 @@
   "description": "",
   "main": "index.js",
   "scripts": {
+    "start": "node app.js",
+    "auth-service": "node services/auth-service/src/server.js",
+    "listing-service": "node services/listing-service/src/server.js",
     "test": "echo \"Error: no test specified\" && exit 1"
   },
   "keywords": [],
   "author": "",
   "license": "ISC",
   "dependencies": {
+    "@grpc/grpc-js": "^1.14.4",
+    "@grpc/proto-loader": "^0.8.1",
     "@mapbox/mapbox-sdk": "^0.16.0",
     "cloudinary": "^1.41.0",
     "connect-flash": "^0.1.1",

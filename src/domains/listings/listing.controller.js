@@ -77,13 +77,18 @@ module.exports.updateListing = async (req, res) => {
       let filename = req.file.filename;
       image = {url,filename};
     }
-    await listingService.updateListing({ id, listingInput: req.body.listing, image });
+    await listingService.updateListing({
+      id,
+      ownerId: req.user._id,
+      listingInput: req.body.listing,
+      image,
+    });
     req.flash("success", "Listing Updated!");
     res.redirect(`/listings/${id}`);
   };
 module.exports.destroyListing = async (req, res) => {
     let { id } = req.params;
-    let deletedListing = await listingService.deleteListing(id);
+    let deletedListing = await listingService.deleteListing({ id, ownerId: req.user._id });
     console.log(deletedListing);
     req.flash("success", "Listing Deleted!");
     res.redirect("/listings");

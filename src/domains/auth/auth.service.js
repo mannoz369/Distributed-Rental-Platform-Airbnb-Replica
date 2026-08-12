@@ -1,72 +1,59 @@
-const crypto = require("crypto");
-const User = require("./user.model.js");
-const tokenService = require("./token.service.js");
+const mongoose = require("mongoose");
+const authGrpcClient = require("./auth.grpc-client.js");
 
-const PASSWORD_ITERATIONS = 120000;
-const PASSWORD_KEY_LENGTH = 64;
-const PASSWORD_DIGEST = "sha512";
-
-const hashPassword = (password, salt = crypto.randomBytes(16).toString("hex")) => {
-  const hash = crypto
-    .pbkdf2Sync(password, salt, PASSWORD_ITERATIONS, PASSWORD_KEY_LENGTH, PASSWORD_DIGEST)
-    .toString("hex");
-
-  return { hash, salt };
-};
-
-const verifyPassword = (password, user) => {
-  const { hash } = hashPassword(password, user.passwordSalt);
-  const hashBuffer = Buffer.from(hash, "hex");
-  const storedHashBuffer = Buffer.from(user.passwordHash, "hex");
-  return (
-    hashBuffer.length === storedHashBuffer.length &&
-    crypto.timingSafeEqual(hashBuffer, storedHashBuffer)
-  );
-};
-
-const verifyLegacyPassword = (password, user) => {
-  if (!user?.hash || !user?.salt) {
-    return false;
+const toGatewayUser = (user) => {
+  if (!user?.id) {
+    return null;
   }
 
-  const legacyAttempts = [
-    { iterations: 25000, keyLength: 512, digest: "sha256" },
-    { iterations: 25000, keyLength: 512, digest: "sha1" },
-  ];
-
-  return legacyAttempts.some(({ iterations, keyLength, digest }) => {
-    const hash = crypto
-      .pbkdf2Sync(password, user.salt, iterations, keyLength, digest)
-      .toString("hex");
-    const hashBuffer = Buffer.from(hash, "hex");
-    const storedHashBuffer = Buffer.from(user.hash, "hex");
-
-    return (
-      hashBuffer.length === storedHashBuffer.length &&
-      crypto.timingSafeEqual(hashBuffer, storedHashBuffer)
-    );
-  });
+  return {
+    _id: new mongoose.Types.ObjectId(user.id),
+    id: user.id,
+    username: user.username,
+    email: user.email,
+    role: user.role || "guest",
+    createdAt: user.created_at,
+    updatedAt: user.updated_at,
+  };
 };
 
-const migrateLegacyPassword = async (user, password) => {
-  const { hash, salt } = hashPassword(password);
-  user.passwordHash = hash;
-  user.passwordSalt = salt;
-  user.hash = undefined;
-  user.salt = undefined;
-  await user.save();
+const toGatewayTokens = (tokens) => ({
+  accessToken: tokens.access_token,
+  refreshToken: tokens.refresh_token,
+  expiresInSeconds: tokens.expires_in_seconds,
+});
+
+const toGatewayAuthResponse = (response) => ({
+  user: toGatewayUser(response.user),
+  tokens: toGatewayTokens(response.tokens),
+});
+
+const registerUser = async ({ username, email, password }) => {
+  const response = await authGrpcClient.signup({ username, email, password });
+  return toGatewayAuthResponse(response);
 };
 
-const saveRefreshToken = async (user, refreshToken) => {
-  const expiresAt = new Date(Date.now() + tokenService.REFRESH_TOKEN_TTL_SECONDS * 1000);
-  user.refreshTokens = [
-    ...(user.refreshTokens || []).filter((token) => token.expiresAt > new Date()),
-    {
-      tokenHash: tokenService.hashToken(refreshToken),
-      expiresAt,
-    },
-  ];
-  await user.save();
+const loginUser = async ({ username, password }) => {
+  const response = await authGrpcClient.login({ username, password });
+  return toGatewayAuthResponse(response);
+};
+
+const refreshAuth = async (refreshToken) => {
+  const response = await authGrpcClient.refreshToken({ refresh_token: refreshToken });
+  return toGatewayAuthResponse(response);
+};
+
+const validateAccessToken = async (accessToken) => {
+  const response = await authGrpcClient.validateToken({ access_token: accessToken });
+  return {
+    valid: response.valid,
+    user: toGatewayUser(response.user),
+  };
+};
+
+const getUser = async (userId) => {
+  const response = await authGrpcClient.getUser({ user_id: userId });
+  return toGatewayUser(response.user);
 };
 
 const removeRefreshToken = async (refreshToken) => {
@@ -74,80 +61,14 @@ const removeRefreshToken = async (refreshToken) => {
     return;
   }
 
-  await User.updateOne(
-    { "refreshTokens.tokenHash": tokenService.hashToken(refreshToken) },
-    { $pull: { refreshTokens: { tokenHash: tokenService.hashToken(refreshToken) } } }
-  );
-};
-
-const issueAndStoreTokens = async (user) => {
-  const tokens = tokenService.issueTokenPair(user);
-  await saveRefreshToken(user, tokens.refreshToken);
-  return tokens;
-};
-
-const registerUser = async ({ username, email, password }) => {
-  const existingUser = await User.findOne({ username });
-  if (existingUser) {
-    throw new Error("A user with the given username is already registered");
-  }
-
-  const { hash, salt } = hashPassword(password);
-  const user = new User({
-    username,
-    email,
-    passwordHash: hash,
-    passwordSalt: salt,
-  });
-
-  await user.save();
-  const tokens = await issueAndStoreTokens(user);
-  return { user, tokens };
-};
-
-const loginUser = async ({ username, password }) => {
-  const user = await User.findOne({ username });
-  const hasCurrentPassword = user?.passwordHash && user?.passwordSalt;
-  const passwordMatches =
-    (hasCurrentPassword && verifyPassword(password, user)) || verifyLegacyPassword(password, user);
-
-  if (!user || !passwordMatches) {
-    throw new Error("Invalid username or password");
-  }
-
-  if (!hasCurrentPassword) {
-    await migrateLegacyPassword(user, password);
-  }
-
-  const tokens = await issueAndStoreTokens(user);
-  return { user, tokens };
-};
-
-const refreshAuth = async (refreshToken) => {
-  const payload = tokenService.verifyToken(refreshToken);
-  if (!payload || payload.typ !== "refresh") {
-    throw new Error("Invalid refresh token");
-  }
-
-  const tokenHash = tokenService.hashToken(refreshToken);
-  const user = await User.findOne({
-    _id: payload.sub,
-    "refreshTokens.tokenHash": tokenHash,
-    "refreshTokens.expiresAt": { $gt: new Date() },
-  });
-
-  if (!user) {
-    throw new Error("Invalid refresh token");
-  }
-
-  user.refreshTokens = user.refreshTokens.filter((token) => token.tokenHash !== tokenHash);
-  const tokens = await issueAndStoreTokens(user);
-  return { user, tokens };
+  await authGrpcClient.revokeRefreshToken({ refresh_token: refreshToken });
 };
 
 module.exports = {
+  getUser,
   loginUser,
   refreshAuth,
   registerUser,
   removeRefreshToken,
+  validateAccessToken,
 };

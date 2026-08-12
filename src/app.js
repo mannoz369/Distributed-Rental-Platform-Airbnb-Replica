@@ -10,6 +10,8 @@ const env = require("./config/env.js");
 const connectDB = require("./config/db.js");
 const authMiddleware = require("./domains/auth/auth.middleware.js");
 const notificationService = require("./domains/notifications/notification.service.js");
+require("./domains/auth/user.model.js");
+require("./domains/listings/listing.model.js");
 
 const listingRoute = require("./domains/listings/listing.routes.js");
 const reviewRoute = require("./domains/reviews/review.routes.js");

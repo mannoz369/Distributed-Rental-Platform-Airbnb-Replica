@@ -9,6 +9,14 @@ const getSafeRedirectUrl = (redirectUrl) => {
     return redirectUrl;
 };
 
+const getAuthErrorMessage = (err) => {
+    if (!err?.message) {
+        return "Authentication service is unavailable.";
+    }
+
+    return err.message.replace(/^\d+\s+[A-Z_]+:\s*/, "");
+};
+
 
 module.exports.renderSignupForm = (req,res)=>{
     res.render("users/signup.ejs");
@@ -24,7 +32,7 @@ module.exports.signup = async(req,res)=>{
         res.redirect("/listings");
         
     } catch(e){
-        req.flash("error", e.message);
+        req.flash("error", getAuthErrorMessage(e));
         res.redirect("/signup");
     }
 };
@@ -43,7 +51,7 @@ module.exports.login = async(req,res)=>{
         req.flash("success","Welcome to Wanderlust! You are logged in.");
         res.redirect(getSafeRedirectUrl(redirectUrl));
     } catch(e) {
-        req.flash("error", e.message);
+        req.flash("error", getAuthErrorMessage(e));
         res.redirect("/login");
     }
 };
@@ -56,7 +64,7 @@ module.exports.refresh = async (req, res) => {
         res.json({ user: { id: user._id, username: user.username, email: user.email, role: user.role } });
     } catch(e) {
         tokenService.clearAuthCookies(res);
-        res.status(401).json({ message: e.message });
+        res.status(401).json({ message: getAuthErrorMessage(e) });
     }
 };
 
@@ -76,7 +84,7 @@ module.exports.me = (req, res) => {
 };
 
 module.exports.logout = async ( req, res) => {
-    await authService.removeRefreshToken(req.cookies[tokenService.REFRESH_TOKEN_COOKIE]);
+    await authService.removeRefreshToken(req.cookies[tokenService.REFRESH_TOKEN_COOKIE]).catch(() => undefined);
     tokenService.clearAuthCookies(res);
     req.flash("success", "You are Logged out!");
     res.redirect("/listings")

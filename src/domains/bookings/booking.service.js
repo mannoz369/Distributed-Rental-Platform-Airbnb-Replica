@@ -1,5 +1,5 @@
 const Booking = require("./booking.model.js");
-const Listing = require("../listings/listing.model.js");
+const listingService = require("../listings/listing.service.js");
 
 const calculateBookingTotals = (nightlyPrice, nights) => {
   const subtotalPrice = nights * nightlyPrice;
@@ -65,14 +65,23 @@ const findOverlappingBooking = (listingId, checkIn, checkOut) => {
 };
 
 const createBooking = async ({ listingId, user, bookingInput }) => {
-  const listing = await Listing.findById(listingId).populate("owner");
+  let listing;
+  try {
+    listing = await listingService.getListingForBooking(listingId);
+  } catch (err) {
+    listing = null;
+  }
 
   if (!listing) {
     return { error: "Listing requested not found!" };
   }
 
-  if (listing.owner._id.equals(user._id)) {
+  if (listing.owner_id === user._id.toString()) {
     return { error: "Owners can't book their own listing." };
+  }
+
+  if (!listing.active) {
+    return { error: "This listing is not available for booking." };
   }
 
   const checkIn = toDateOnly(bookingInput.checkIn);
@@ -90,14 +99,14 @@ const createBooking = async ({ listingId, user, bookingInput }) => {
 
   const nights = Math.ceil((checkOut - checkIn) / (1000 * 60 * 60 * 24));
   const { subtotalPrice, gstAmount, totalPrice } = calculateBookingTotals(
-    Number(listing.price),
+    Number(listing.nightly_price),
     nights
   );
 
   const booking = new Booking({
-    listing: listing._id,
+    listing: listing.listing_id,
     guest: user._id,
-    owner: listing.owner._id,
+    owner: listing.owner_id,
     guestName: user.username,
     guestEmail: user.email,
     checkIn,

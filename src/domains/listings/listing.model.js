@@ -1,7 +1,5 @@
 const mongoose = require("mongoose");
 const Schema = mongoose.Schema;
-const Review = require("../reviews/review.model.js");
-const Booking = require("../bookings/booking.model.js");
 const listingSchema = new Schema({
     title: {
         type: String,
@@ -36,17 +34,12 @@ const listingSchema = new Schema({
           required: true,
         },
     },
-});
-
-listingSchema.post("findOneAndDelete", async(listing)=>{
-    if(listing){
-        await Review.deleteMany({_id: {$in: listing.reviews}})
-        await Booking.deleteMany({listing: listing._id});
-
-    }
-    
-
-});
+    status: {
+        type: String,
+        enum: ["active", "deleted"],
+        default: "active",
+    },
+}, { timestamps: true });
 
 const Listing = mongoose.model("Listing",listingSchema);
 module.exports = Listing;

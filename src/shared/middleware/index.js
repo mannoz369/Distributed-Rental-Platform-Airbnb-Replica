@@ -1,4 +1,4 @@
-const Listing = require("../../domains/listings/listing.model.js");
+const listingService = require("../../domains/listings/listing.service.js");
 const Review = require("../../domains/reviews/review.model.js");
 const ExpressErrors = require("../errors/ExpressErros.js");
 const { listingSchema } = require("../../domains/listings/listing.validation.js");
@@ -25,8 +25,8 @@ module.exports.saveRedirectUrl = (req,res,next) =>{
 
 module.exports.isOwner = async(req,res,next) =>{
   let { id } = req.params;
-  let listing = await Listing.findById(id);
-  if(!listing.owner._id.equals(res.locals.currUser._id)){
+  let listing = await listingService.findListingById(id);
+  if(!listing || !listing.owner.equals(res.locals.currUser._id)){
     req.flash("error","You Don't have permission to update");
     return res.redirect(`/listings/${id}`);
   }
