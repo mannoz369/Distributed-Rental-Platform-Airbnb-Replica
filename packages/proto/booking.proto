@@ -10,6 +10,7 @@ service BookingService {
   rpc GetOwnerBookings(GetOwnerBookingsRequest) returns (BookingsResponse);
   rpc GetBookedDates(GetBookedDatesRequest) returns (GetBookedDatesResponse);
   rpc CheckAvailability(CheckAvailabilityRequest) returns (CheckAvailabilityResponse);
+  rpc MarkOwnerSeen(MarkOwnerSeenRequest) returns (BookingResponse);
 }
 
 message Booking {
@@ -72,6 +73,11 @@ message CheckAvailabilityRequest {
   string listing_id = 1;
   string check_in = 2;
   string check_out = 3;
+}
+
+message MarkOwnerSeenRequest {
+  string booking_id = 1;
+  string owner_id = 2;
 }
 
 message CheckAvailabilityResponse {

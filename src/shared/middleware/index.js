@@ -1,5 +1,4 @@
 const listingService = require("../../domains/listings/listing.service.js");
-const Review = require("../../domains/reviews/review.model.js");
 const ExpressErrors = require("../errors/ExpressErros.js");
 const { listingSchema } = require("../../domains/listings/listing.validation.js");
 const { reviewSchema } = require("../../domains/reviews/review.validation.js");
@@ -82,12 +81,3 @@ module.exports.validateCancelBooking = (req,res,next)=>{
   }
 };
 
-module.exports.isReviewAuthor = async(req,res,next) =>{
-  let { id , reviewId } = req.params;
-  let review = await Review.findById(reviewId);
-  if(!review.author.equals(res.locals.currUser._id)){
-    req.flash("error","You can't delete this review");
-    return res.redirect(`/listings/${id}`);
-  }
-  next();
-};

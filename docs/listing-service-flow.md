@@ -107,7 +107,7 @@ For now the Gateway composes:
 
 - Listing data from Listing Service.
 - Owner display data from Auth Service.
-- Review cards from the current Review model.
-- Booked dates from the current Booking model.
+- Review cards from Review Service.
+- Booked dates from Booking Service.
 
-These are transitional joins. Phase 6 and Phase 7 should replace them with Booking Service and Review Service gRPC calls.
+The remaining transitional join is the listing-owned `review_ids` compatibility field, which should disappear when review data has been fully migrated.

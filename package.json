@@ -10,6 +10,8 @@
     "start": "node app.js",
     "auth-service": "node services/auth-service/src/server.js",
     "listing-service": "node services/listing-service/src/server.js",
+    "booking-service": "node services/booking-service/src/server.js",
+    "review-service": "node services/review-service/src/server.js",
     "test": "echo \"Error: no test specified\" && exit 1"
   },
   "keywords": [],

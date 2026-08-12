@@ -126,9 +126,9 @@ Current call chain:
 Future gRPC mapping:
 
 1. Gateway calls `ListingService.GetListing(GetListingRequest)`.
-2. Gateway currently composes review display data from the monolith Review model until Phase 7.
-3. Gateway currently composes booked dates from the monolith Booking model until Phase 6.
-4. Later Gateway will call `ReviewService.GetListingReviews` and `BookingService.GetBookedDates`.
+2. Gateway calls `ReviewService.GetListingReviews(GetListingReviewsRequest)`.
+3. Gateway calls `BookingService.GetBookedDates(GetBookedDatesRequest)`.
+4. Gateway combines the response for the frontend.
 
 ### Create Booking
 
@@ -148,12 +148,13 @@ Current call chain:
 Future gRPC mapping:
 
 1. Gateway validates JWT.
-2. Gateway booking logic currently creates the booking inside the monolith until Phase 6.
-3. Gateway booking logic calls `ListingService.GetListingForBooking(GetListingForBookingRequest)`.
-4. Booking logic rejects owner self-booking or inactive/missing listings.
-5. Booking logic checks date overlap.
-6. Booking logic saves the booking.
-7. Gateway redirects to confirmation.
+2. Gateway calls `BookingService.CreateBooking(CreateBookingRequest)`.
+3. Booking Service calls `ListingService.GetListingForBooking(GetListingForBookingRequest)`.
+4. Booking Service rejects owner self-booking or inactive/missing listings.
+5. Booking Service checks date overlap.
+6. Booking Service saves the booking.
+7. Booking Service returns `BookingResponse`.
+8. Gateway redirects to confirmation.
 
 This is a synchronous gRPC flow because the user needs an immediate booking confirmation or rejection.
 
@@ -171,7 +172,7 @@ Future gRPC mapping:
 
 1. Gateway calls `BookingService.CancelBooking(CancelBookingRequest)`.
 2. Booking Service uses authenticated metadata to verify the requester owns the booking as guest.
-3. Booking Service updates status and returns `BookingResponse`.
+3. Booking Service updates status, marks `ownerSeen = false`, and returns `BookingResponse`.
 
 ### Create Review
 
@@ -189,10 +190,10 @@ Current call chain:
 
 Future gRPC mapping:
 
-1. Gateway review logic still saves the review in the monolith until Phase 7.
-2. Gateway review logic calls `ListingService.GetListing(GetListingRequest)` to verify the listing exists.
-3. Gateway review logic calls temporary `ListingService.AddReviewReference`.
-4. Phase 7 will replace this with `ReviewService.CreateReview`.
+1. Gateway calls `ReviewService.CreateReview(CreateReviewRequest)`.
+2. Review Service calls `ListingService.GetListing(GetListingRequest)` to verify the listing exists.
+3. Review Service saves the review in its own model.
+4. Review Service calls temporary `ListingService.AddReviewReference`.
 
 ### Delete Review
 
@@ -206,10 +207,10 @@ Current call chain:
 
 Future gRPC mapping:
 
-1. Gateway verifies requester ownership using the current Review model.
-2. Gateway calls temporary `ListingService.RemoveReviewReference`.
-3. Gateway deletes the review.
-4. Phase 7 will replace this with `ReviewService.DeleteReview`.
+1. Gateway calls `ReviewService.DeleteReview(DeleteReviewRequest)`.
+2. Review Service verifies requester ownership.
+3. Review Service calls temporary `ListingService.RemoveReviewReference`.
+4. Review Service deletes the review.
 
 ### Owner Notification Count
 

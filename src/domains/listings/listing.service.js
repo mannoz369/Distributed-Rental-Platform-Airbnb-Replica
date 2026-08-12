@@ -1,16 +1,8 @@
 const mongoose = require("mongoose");
-const Booking = require("../bookings/booking.model.js");
-const Review = require("../reviews/review.model.js");
 const authService = require("../auth/auth.service.js");
+const bookingGrpcClient = require("../bookings/booking.grpc-client.js");
+const reviewService = require("../reviews/review.service.js");
 const listingGrpcClient = require("./listing.grpc-client.js");
-
-const formatDateKey = (date) => {
-  const localDate = new Date(date);
-  const year = localDate.getFullYear();
-  const month = String(localDate.getMonth() + 1).padStart(2, "0");
-  const day = String(localDate.getDate()).padStart(2, "0");
-  return `${year}-${month}-${day}`;
-};
 
 const objectId = (id) => new mongoose.Types.ObjectId(id);
 
@@ -100,7 +92,7 @@ const findListingDetails = async (id) => {
 
   const [owner, reviews] = await Promise.all([
     authService.getUser(listing.owner.toString()).catch(() => null),
-    Review.find({ _id: { $in: listing.reviews || [] } }).populate("author"),
+    reviewService.getListingReviews(id).catch(() => []),
   ]);
 
   listing.owner = owner || { _id: listing.owner, username: "Unknown host", email: "" };
@@ -109,23 +101,11 @@ const findListingDetails = async (id) => {
 };
 
 const getBookedDatesForListing = async (listingId) => {
-  const bookings = await Booking.find({
-    listing: listingId,
-    status: "confirmed",
-  }).select("checkIn checkOut");
-
-  return bookings.flatMap((booking) => {
-    const dates = [];
-    const cursor = new Date(booking.checkIn);
-    const checkOut = new Date(booking.checkOut);
-
-    while (cursor <= checkOut) {
-      dates.push(formatDateKey(cursor));
-      cursor.setDate(cursor.getDate() + 1);
-    }
-
-    return dates;
+  const response = await bookingGrpcClient.getBookedDates({
+    listing_id: listingId.toString(),
   });
+
+  return response.booked_dates;
 };
 
 const createListing = async ({ listingInput, ownerId, image }) => {

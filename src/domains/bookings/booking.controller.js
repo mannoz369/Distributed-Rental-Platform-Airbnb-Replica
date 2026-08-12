@@ -18,7 +18,7 @@ module.exports.createBooking = async (req, res) => {
 };
 
 module.exports.renderConfirmation = async (req, res) => {
-  const booking = await bookingService.findBookingDetails(req.params.bookingId);
+  const booking = await bookingService.findBookingDetails(req.params.bookingId, req.user._id);
 
   if (!booking || !booking.guest._id.equals(req.user._id)) {
     req.flash("error", "Booking not found.");
@@ -45,9 +45,9 @@ module.exports.myBookings = async (req, res) => {
 };
 
 module.exports.renderCancelForm = async (req, res) => {
-  const booking = await bookingService.findBookingForGuest(req.params.bookingId);
+  const booking = await bookingService.findBookingForGuest(req.params.bookingId, req.user._id);
 
-  if (!booking || !booking.guest.equals(req.user._id)) {
+  if (!booking || !booking.guest._id.equals(req.user._id)) {
     req.flash("error", "Booking not found.");
     return res.redirect("/bookings/my");
   }
@@ -61,9 +61,9 @@ module.exports.renderCancelForm = async (req, res) => {
 };
 
 module.exports.cancelBooking = async (req, res) => {
-  const booking = await bookingService.findBookingForGuest(req.params.bookingId);
+  const booking = await bookingService.findBookingForGuest(req.params.bookingId, req.user._id);
 
-  if (!booking || !booking.guest.equals(req.user._id)) {
+  if (!booking || !booking.guest._id.equals(req.user._id)) {
     req.flash("error", "Booking not found.");
     return res.redirect("/bookings/my");
   }
@@ -73,7 +73,10 @@ module.exports.cancelBooking = async (req, res) => {
     return res.redirect("/bookings/my");
   }
 
-  await bookingService.cancelBooking(booking);
+  await bookingService.cancelBooking({
+    bookingId: req.params.bookingId,
+    requesterId: req.user._id,
+  });
 
   req.flash("success", "Booking cancelled. The owner can see the update.");
   res.redirect("/bookings/my");
@@ -86,18 +89,21 @@ module.exports.ownerNotifications = async (req, res) => {
 };
 
 module.exports.ownerBookingDetails = async (req, res) => {
-  const booking = await bookingService.findBookingDetails(req.params.bookingId);
+  const booking = await bookingService.findBookingDetails(req.params.bookingId, req.user._id);
 
   if (!booking || !booking.owner._id.equals(req.user._id)) {
     req.flash("error", "Booking not found.");
     return res.redirect("/owner/bookings");
   }
 
-  await bookingService.markBookingSeen(booking);
-  await bookingService.ensureBookingTotals(booking);
+  const seenBooking = await bookingService.markBookingSeen({
+    bookingId: req.params.bookingId,
+    requesterId: req.user._id,
+  });
+  await bookingService.ensureBookingTotals(seenBooking || booking);
 
   res.render("bookings/owner-show.ejs", {
-    booking,
-    totals: bookingService.getBookingDisplayTotals(booking),
+    booking: seenBooking || booking,
+    totals: bookingService.getBookingDisplayTotals(seenBooking || booking),
   });
 };

@@ -1,7 +1,7 @@
 const express = require("express");
 const router = express.Router({mergeParams: true});
 const wrapAsync = require("../../shared/utils/wrapAsync.js")
-const {validateReview,isLoggedin,isReviewAuthor} = require("../../shared/middleware");
+const {validateReview,isLoggedin} = require("../../shared/middleware");
 const reviewController = require("./review.controller.js");
 
 
@@ -10,7 +10,7 @@ const reviewController = require("./review.controller.js");
 router.post("/", isLoggedin,validateReview, wrapAsync(reviewController.createReview));  
   
   //delete review route
-  router.delete("/:reviewId", isLoggedin,isReviewAuthor, wrapAsync(reviewController.destroyReview)
+  router.delete("/:reviewId", isLoggedin, wrapAsync(reviewController.destroyReview)
   );
 
 

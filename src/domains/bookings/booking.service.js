@@ -1,5 +1,17 @@
-const Booking = require("./booking.model.js");
+const mongoose = require("mongoose");
+const authService = require("../auth/auth.service.js");
 const listingService = require("../listings/listing.service.js");
+const bookingGrpcClient = require("./booking.grpc-client.js");
+
+const objectId = (id) => new mongoose.Types.ObjectId(id);
+
+const isNotFoundOrPermissionError = (err) => {
+  return err?.code === 5 || err?.code === 7 || /NOT_FOUND|PERMISSION_DENIED/i.test(err?.message || "");
+};
+
+const getBookingErrorMessage = (err) => {
+  return (err?.message || "Booking request failed.").replace(/^\d+\s+[A-Z_]+:\s*/, "");
+};
 
 const calculateBookingTotals = (nightlyPrice, nights) => {
   const subtotalPrice = nights * nightlyPrice;
@@ -11,145 +23,176 @@ const calculateBookingTotals = (nightlyPrice, nights) => {
   };
 };
 
-const getBookingDisplayTotals = (booking) => {
-  if (booking?.listing?.price && booking?.nights) {
-    return calculateBookingTotals(Number(booking.listing.price), booking.nights);
+const toGatewayUser = (user, fallbackId) => {
+  if (user?._id) {
+    return user;
   }
 
-  const subtotalPrice = Number(booking?.subtotalPrice || booking?.totalPrice || 0);
-  const gstAmount = Number(booking?.gstAmount || Math.round(subtotalPrice * 0.18));
   return {
-    subtotalPrice,
-    gstAmount,
-    totalPrice: subtotalPrice + gstAmount,
+    _id: objectId(user?.id || fallbackId),
+    id: user?.id || fallbackId,
+    username: user?.username || "Unknown user",
+    email: user?.email || "",
+    role: user?.role || "guest",
   };
 };
 
-const ensureBookingTotals = async (booking) => {
+const toSnapshotListing = (booking) => ({
+  _id: objectId(booking.listing_id),
+  id: booking.listing_id,
+  title: booking.listing_title_snapshot || "Deleted listing",
+  price: Number(booking.nightly_price_snapshot || 0),
+  location: "",
+  country: "",
+});
+
+const toGatewayBooking = (booking) => {
+  if (!booking?.id) {
+    return null;
+  }
+
+  return {
+    _id: objectId(booking.id),
+    id: booking.id,
+    listing: toSnapshotListing(booking),
+    guest: objectId(booking.guest_id),
+    owner: objectId(booking.owner_id),
+    guestName: booking.guest_name_snapshot,
+    guestEmail: booking.guest_email_snapshot,
+    listingTitleSnapshot: booking.listing_title_snapshot,
+    nightlyPriceSnapshot: Number(booking.nightly_price_snapshot || 0),
+    checkIn: new Date(booking.check_in),
+    checkOut: new Date(booking.check_out),
+    nights: Number(booking.nights || 0),
+    subtotalPrice: Number(booking.subtotal_price || 0),
+    gstAmount: Number(booking.tax_amount || 0),
+    totalPrice: Number(booking.total_price || 0),
+    status: booking.status,
+    ownerSeen: Boolean(booking.owner_seen),
+    createdAt: booking.created_at,
+    updatedAt: booking.updated_at,
+  };
+};
+
+const hydrateBookingForDisplay = async (booking) => {
   if (!booking) {
     return booking;
   }
 
-  const totals = getBookingDisplayTotals(booking);
-  const hasStaleTotals =
-    booking.subtotalPrice !== totals.subtotalPrice ||
-    booking.gstAmount !== totals.gstAmount ||
-    booking.totalPrice !== totals.totalPrice;
+  const [listing, guest, owner] = await Promise.all([
+    listingService.findListingById(booking.listing._id).catch(() => null),
+    authService.getUser(booking.guest.toString()).catch(() => null),
+    authService.getUser(booking.owner.toString()).catch(() => null),
+  ]);
 
-  if (hasStaleTotals) {
-    booking.subtotalPrice = totals.subtotalPrice;
-    booking.gstAmount = totals.gstAmount;
-    booking.totalPrice = totals.totalPrice;
-    await booking.save({ validateBeforeSave: false });
+  booking.listing = listing || booking.listing;
+  booking.guest = toGatewayUser(guest, booking.guest.toString());
+  booking.owner = toGatewayUser(owner, booking.owner.toString());
+  return booking;
+};
+
+const createBooking = async ({ listingId, user, bookingInput }) => {
+  try {
+    const response = await bookingGrpcClient.createBooking({
+      listing_id: listingId.toString(),
+      guest_id: user._id.toString(),
+      guest_name: user.username,
+      guest_email: user.email,
+      check_in: bookingInput.checkIn,
+      check_out: bookingInput.checkOut,
+    });
+
+    return { booking: toGatewayBooking(response.booking) };
+  } catch (err) {
+    return { error: getBookingErrorMessage(err) };
+  }
+};
+
+const findBookingDetails = async (bookingId, requesterId) => {
+  try {
+    const response = await bookingGrpcClient.getBooking({
+      booking_id: bookingId.toString(),
+      requester_id: requesterId.toString(),
+    });
+
+    return hydrateBookingForDisplay(toGatewayBooking(response.booking));
+  } catch (err) {
+    if (isNotFoundOrPermissionError(err)) {
+      return null;
+    }
+
+    throw err;
+  }
+};
+
+const findGuestBookings = async (guestId) => {
+  const response = await bookingGrpcClient.getGuestBookings({
+    guest_id: guestId.toString(),
+    page: 1,
+    page_size: 100,
+  });
+
+  return Promise.all(response.bookings.map((booking) => hydrateBookingForDisplay(toGatewayBooking(booking))));
+};
+
+const findOwnerBookings = async (ownerId) => {
+  const response = await bookingGrpcClient.getOwnerBookings({
+    owner_id: ownerId.toString(),
+    page: 1,
+    page_size: 100,
+  });
+
+  return Promise.all(response.bookings.map((booking) => hydrateBookingForDisplay(toGatewayBooking(booking))));
+};
+
+const findBookingForGuest = async (bookingId, guestId) => {
+  const booking = await findBookingDetails(bookingId, guestId);
+  if (!booking || !booking.guest._id.equals(guestId)) {
+    return null;
   }
 
   return booking;
 };
 
-const toDateOnly = (value) => {
-  if (typeof value === "string" && value.includes("-")) {
-    const [year, month, day] = value.split("-").map(Number);
-    return new Date(year, month - 1, day);
-  }
-  const date = new Date(value);
-  return new Date(date.getFullYear(), date.getMonth(), date.getDate());
-};
-
-const findOverlappingBooking = (listingId, checkIn, checkOut) => {
-  return Booking.findOne({
-    listing: listingId,
-    status: "confirmed",
-    checkIn: { $lte: checkOut },
-    checkOut: { $gte: checkIn },
-  });
-};
-
-const createBooking = async ({ listingId, user, bookingInput }) => {
-  let listing;
-  try {
-    listing = await listingService.getListingForBooking(listingId);
-  } catch (err) {
-    listing = null;
-  }
-
-  if (!listing) {
-    return { error: "Listing requested not found!" };
-  }
-
-  if (listing.owner_id === user._id.toString()) {
-    return { error: "Owners can't book their own listing." };
-  }
-
-  if (!listing.active) {
-    return { error: "This listing is not available for booking." };
-  }
-
-  const checkIn = toDateOnly(bookingInput.checkIn);
-  const checkOut = toDateOnly(bookingInput.checkOut);
-  const today = toDateOnly(new Date());
-
-  if (checkIn < today || checkOut <= checkIn) {
-    return { error: "Please choose valid future check-in and check-out dates." };
-  }
-
-  const overlappingBooking = await findOverlappingBooking(listingId, checkIn, checkOut);
-  if (overlappingBooking) {
-    return { error: "This property is already booked for those dates." };
-  }
-
-  const nights = Math.ceil((checkOut - checkIn) / (1000 * 60 * 60 * 24));
-  const { subtotalPrice, gstAmount, totalPrice } = calculateBookingTotals(
-    Number(listing.nightly_price),
-    nights
-  );
-
-  const booking = new Booking({
-    listing: listing.listing_id,
-    guest: user._id,
-    owner: listing.owner_id,
-    guestName: user.username,
-    guestEmail: user.email,
-    checkIn,
-    checkOut,
-    nights,
-    subtotalPrice,
-    gstAmount,
-    totalPrice,
+const cancelBooking = async ({ bookingId, requesterId }) => {
+  const response = await bookingGrpcClient.cancelBooking({
+    booking_id: bookingId.toString(),
+    requester_id: requesterId.toString(),
   });
 
-  await booking.save();
-  return { booking };
+  return hydrateBookingForDisplay(toGatewayBooking(response.booking));
 };
 
-const findBookingDetails = (bookingId) => {
-  return Booking.findById(bookingId).populate("listing").populate("guest").populate("owner");
+const markBookingSeen = async ({ bookingId, requesterId }) => {
+  const response = await bookingGrpcClient.markOwnerSeen({
+    booking_id: bookingId.toString(),
+    owner_id: requesterId.toString(),
+  });
+
+  return hydrateBookingForDisplay(toGatewayBooking(response.booking));
 };
 
-const findGuestBookings = (guestId) => {
-  return Booking.find({ guest: guestId }).populate("listing").sort({ createdAt: -1 });
+const getBookedDatesForListing = async (listingId) => {
+  const response = await bookingGrpcClient.getBookedDates({
+    listing_id: listingId.toString(),
+  });
+
+  return response.booked_dates;
 };
 
-const findBookingForGuest = (bookingId) => {
-  return Booking.findById(bookingId).populate("listing");
+const getBookingDisplayTotals = (booking) => {
+  if (booking?.subtotalPrice || booking?.gstAmount || booking?.totalPrice) {
+    return {
+      subtotalPrice: Number(booking.subtotalPrice || 0),
+      gstAmount: Number(booking.gstAmount || 0),
+      totalPrice: Number(booking.totalPrice || 0),
+    };
+  }
+
+  return calculateBookingTotals(Number(booking?.listing?.price || booking?.nightlyPriceSnapshot || 0), booking?.nights || 0);
 };
 
-const cancelBooking = async (booking) => {
-  booking.status = "cancelled";
-  booking.ownerSeen = false;
-  return booking.save();
-};
-
-const findOwnerBookings = (ownerId) => {
-  return Booking.find({ owner: ownerId })
-    .populate("listing")
-    .populate("guest")
-    .sort({ createdAt: -1 });
-};
-
-const markBookingSeen = async (booking) => {
-  booking.ownerSeen = true;
-  return booking.save();
-};
+const ensureBookingTotals = async (booking) => booking;
 
 module.exports = {
   cancelBooking,
@@ -159,6 +202,7 @@ module.exports = {
   findBookingForGuest,
   findGuestBookings,
   findOwnerBookings,
+  getBookedDatesForListing,
   getBookingDisplayTotals,
   markBookingSeen,
 };

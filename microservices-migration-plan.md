@@ -820,6 +820,54 @@ Booking Service should call Listing Service through gRPC when creating a booking
 - Booking Service does not read Listing DB directly.
 - Booking Service does not read Auth DB directly.
 
+### Phase 6 Implementation Notes
+
+Implemented on 2026-08-12:
+
+- Added standalone Booking Service under `services/booking-service`.
+  - `src/server.js` starts the gRPC server.
+  - `src/grpc.js` implements `BookingService` from `packages/proto/booking.proto`.
+  - `src/booking.service.js` owns booking creation, availability checks, totals, cancellation, owner seen state, guest/owner booking lists, and booked-date lookup.
+  - `src/booking.model.js` owns booking persistence.
+  - `src/listing.grpc-client.js` calls Listing Service for `GetListingForBooking`.
+  - `src/config/db.js` and `src/config/env.js` isolate service configuration.
+- Added `services/booking-service/.env.example`.
+- Added npm script:
+  - `npm run booking-service`
+- Added Gateway gRPC client support:
+  - `src/domains/bookings/booking.grpc-client.js`
+- Converted `src/domains/bookings/booking.service.js` into a Gateway adapter that calls Booking Service over gRPC.
+- Gateway booking flows now call Booking Service for:
+  - Create booking
+  - Cancel booking
+  - Get booking details
+  - Guest booking history
+  - Owner booking list
+  - Booked dates
+  - Owner seen state
+- Listing detail booked-date lookup now calls `BookingService.GetBookedDates` instead of reading the Booking model in the Gateway.
+- Owner notification count now derives from `BookingService.GetOwnerBookings` instead of reading the Booking model in the Gateway.
+- Booking Service calls Listing Service through gRPC for booking creation and does not read Listing DB directly.
+- Extended `booking.proto` with:
+  - `MarkOwnerSeen`
+  - `MarkOwnerSeenRequest`
+- Added `docs/booking-service-flow.md` documenting the full Booking Service extraction flow.
+
+How to run Phase 6 locally:
+
+1. Start Auth Service with `npm run auth-service`.
+2. Start Listing Service with `npm run listing-service`.
+3. Start Booking Service with `npm run booking-service`.
+4. In another terminal, start the Gateway with `npm start`.
+5. Gateway calls `BOOKING_SERVICE_URL`, defaulting to `localhost:50053`.
+6. Booking Service calls `LISTING_SERVICE_URL`, defaulting to `localhost:50052`.
+
+Remaining Phase 6 follow-ups:
+
+- Split `BOOKING_DB_URL` from the monolith database once booking data migration is planned.
+- Move notification count to Notification Service when Phase 8 introduces booking events.
+- Replace booking listing/user display hydration with read models or Gateway composition once all services have independent databases.
+
 ## Phase 7: Extract Review Service
 
 ### Objective
@@ -869,6 +917,46 @@ Review fields:
 - Reviews can be deleted only by their author.
 - Listing pages can display reviews.
 - Listing Service does not own review documents.
+
+### Phase 7 Implementation Notes
+
+Implemented on 2026-08-12:
+
+- Added standalone Review Service under `services/review-service`.
+  - `src/server.js` starts the gRPC server.
+  - `src/grpc.js` implements `ReviewService` from `packages/proto/review.proto`.
+  - `src/review.service.js` owns review creation, deletion, listing review reads, author permission checks, and review summaries.
+  - `src/review.model.js` owns review persistence.
+  - `src/listing.grpc-client.js` calls Listing Service for listing existence and temporary review-reference updates.
+  - `src/config/db.js` and `src/config/env.js` isolate service configuration.
+- Added `services/review-service/.env.example`.
+- Added npm script:
+  - `npm run review-service`
+- Added Gateway gRPC client support:
+  - `src/domains/reviews/review.grpc-client.js`
+- Converted `src/domains/reviews/review.service.js` into a Gateway adapter that calls Review Service over gRPC.
+- Listing detail pages now call `ReviewService.GetListingReviews` instead of reading the Review model in the Gateway.
+- Review create/delete now call Review Service.
+- Review author checks now happen inside Review Service during `DeleteReview`.
+- Removed Gateway `isReviewAuthor` direct Review model middleware from review routes.
+- Review Service supports legacy review ids from Listing Service `review_ids` while existing data is still in the shared database.
+- Added `docs/review-service-flow.md` documenting the full Review Service extraction flow.
+
+How to run Phase 7 locally:
+
+1. Start Auth Service with `npm run auth-service`.
+2. Start Listing Service with `npm run listing-service`.
+3. Start Booking Service with `npm run booking-service`.
+4. Start Review Service with `npm run review-service`.
+5. In another terminal, start the Gateway with `npm start`.
+6. Gateway calls `REVIEW_SERVICE_URL`, defaulting to `localhost:50054`.
+7. Review Service calls `LISTING_SERVICE_URL`, defaulting to `localhost:50052`.
+
+Remaining Phase 7 follow-ups:
+
+- Split `REVIEW_DB_URL` from the monolith database once review data migration is planned.
+- Remove listing-owned `review_ids` and temporary Listing Service review-reference RPC usage once reviews are fully review-owned.
+- Later Kafka work should publish `review.created` and `review.deleted` for listing rating read models.
 
 ## Phase 8: Add Kafka Events
 
