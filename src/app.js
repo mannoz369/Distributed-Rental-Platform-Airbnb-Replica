@@ -42,6 +42,10 @@ app.get("/",(req,res)=>{
     res.redirect("/listings");
 });
 
+app.get("/healthz", (req, res) => {
+    res.status(200).json({ status: "ok", service: "gateway" });
+});
+
 
 
 app.use(session(sessionOptions));

@@ -17,6 +17,8 @@
     "compose:down": "docker compose down",
     "migrate:atlas:dry-run": "node scripts/migrate-atlas-service-dbs.js",
     "migrate:atlas": "node scripts/migrate-atlas-service-dbs.js --write",
+    "k8s:apply": "kubectl apply -k infra/k8s",
+    "k8s:delete": "kubectl delete -k infra/k8s",
     "kafka:up": "docker compose up -d kafka kafka-ui",
     "kafka:down": "docker compose down",
     "kafka:ps": "docker compose ps",

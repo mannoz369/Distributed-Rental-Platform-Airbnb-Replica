@@ -1,0 +1,25 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: airbnb-config
+data:
+  NODE_ENV: "production"
+  COOKIE_SECURE: "true"
+  AUTH_SERVICE_URL: "auth-service:50051"
+  LISTING_SERVICE_URL: "listing-service:50052"
+  BOOKING_SERVICE_URL: "booking-service:50053"
+  REVIEW_SERVICE_URL: "review-service:50054"
+  NOTIFICATION_SERVICE_URL: "notification-service:50055"
+  KAFKA_BROKERS: "redpanda:9092"
+  KAFKA_ENABLED: "true"
+  AUTH_SERVICE_HOST: "0.0.0.0"
+  AUTH_SERVICE_PORT: "50051"
+  LISTING_SERVICE_HOST: "0.0.0.0"
+  LISTING_SERVICE_PORT: "50052"
+  BOOKING_SERVICE_HOST: "0.0.0.0"
+  BOOKING_SERVICE_PORT: "50053"
+  REVIEW_SERVICE_HOST: "0.0.0.0"
+  REVIEW_SERVICE_PORT: "50054"
+  NOTIFICATION_SERVICE_HOST: "0.0.0.0"
+  NOTIFICATION_SERVICE_PORT: "50055"
+  NOTIFICATION_KAFKA_GROUP_ID: "notification-service"
