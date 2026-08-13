@@ -14,7 +14,7 @@ spec:
     spec:
       containers:
         - name: gateway
-          image: ghcr.io/YOUR_GITHUB_USERNAME/airbnb-replica-gateway:latest
+          image: ghcr.io/mannoz369/airbnb-replica-gateway:latest
           imagePullPolicy: IfNotPresent
           ports:
             - containerPort: 8080
