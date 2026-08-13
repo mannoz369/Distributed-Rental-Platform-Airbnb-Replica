@@ -1,87 +1,233 @@
-# **Wunderlust-Airbnb Clone**  
-A replica of Airbnb, built using the **MERN stack** (MongoDB, Express.js, React.js, and Node.js). This project emulates the core functionalities of Airbnb, allowing users to explore, book, and manage stays at unique destinations worldwide. It showcases a clean user interface and a robust backend to manage listings, bookings, and user authentication.
-This Website is on air 🌐, you can visit here
-https://wanderlust-v7ei.onrender.com/listings
- 
+# Wanderlust Airbnb Replica
 
+Wanderlust is an Airbnb-style booking application that started as an Express, EJS, MongoDB, and Mongoose monolith and has been migrated toward a microservices architecture.
 
----
+The project now runs as a set of containerized services behind a gateway, with service-owned MongoDB Atlas databases, gRPC service communication, and Kafka-compatible booking events through Redpanda.
 
-## **Table of Contents**
-- [Features](#features)
-- [Tech Stack](#tech-stack)
-- [How to Use](#how-to-use)
-- [Screenshots](#screenshots)
-- [Future Enhancements](#future-enhancements)
-- [Contributing](#contributing)
-- [License](#license)
+## Current Status
 
----
+The application is deployed on AWS EC2 using Docker Compose.
 
-## **Features**
-- 🌍 **Explore Listings**: Browse through a variety of listings with detailed descriptions and pricing.
-- 🏠 **Add Listings**: Hosts can create and manage property listings.
-- 🏠 **Edit Listings**: Hosts can manage property listings.
-- 🏠 **Delete Listings**: Hosts can Delete property listings.
-- 🏠 **Review Listings**: Costumer can leave a review about their stay.
-- 🔒 **User Authentication**: Secure login and signup functionalities.
-- 📱 **Responsive Design**: Optimized for both desktop and mobile devices.
+This deployment runs the same service topology that was tested locally:
 
+```text
+EC2 instance
+  gateway
+  auth-service
+  listing-service
+  booking-service
+  review-service
+  notification-service
+  redpanda/kafka
+  kafka-ui optional
 
----
+MongoDB Atlas
+  auth-db
+  listing-db
+  booking-db
+  review-db
+  notification-db
+```
 
-## **Tech Stack**
-- **Frontend**: React.js, HTML5, CSS3
-- **Backend**: Node.js, Express.js
-- **Database**: MongoDB (hosted on MongoDB Atlas)
-- **Deployment**: Render (for server) , cloudinary (for photos)
-- **Other Tools**:
-  - passport for authentication
-  - Mongoose for database interaction
-  - error handeling
-  - client side errors and server side errors
-  - flash messages to notify user
-  - Geocoding to display property/listing on maps using Mapbox 
+Kubernetes manifests were designed for Oracle Cloud Infrastructure Kubernetes Engine in `infra/k8s`, including Deployments, ClusterIP services, a gateway LoadBalancer, Redpanda, and HPA definitions. Oracle Cloud Always Free node provisioning failed because the selected region had no available `VM.Standard.A1.Flex` capacity, so the live deployment was moved to AWS EC2.
 
----
+## Architecture
 
+```text
+Browser
+  -> Gateway
+  -> Auth Service
+  -> Listing Service
+  -> Booking Service
+  -> Review Service
+  -> Notification Service
 
+Booking Service
+  -> Redpanda/Kafka booking events
+  -> Notification Service consumer
 
-## **How to Use**
-1. **Browse Listings**: View all available stays with details like location, price, and ratings.
-2. **Sign Up/Login**: Create an account or log in to book stays.
-3. **Book Stays**: Select dates and confirm bookings for your desired property.
-4. **Host Management (Future)**: Hosts can list their properties and manage bookings.
+Each service
+  -> its own MongoDB Atlas database
+```
 
----
+The gateway no longer connects directly to MongoDB. It renders the EJS UI and calls backend services through gRPC clients.
 
-## **Screenshots**
-![image](https://github.com/user-attachments/assets/9e018a5e-4b68-4c7b-a4e8-cdbbabb6b442)
-![image](https://github.com/user-attachments/assets/d5d0ea73-8737-4d2d-b9d3-c75c1887a486)
-![image](https://github.com/user-attachments/assets/6fa19e53-6096-4e2e-9f2a-5ee21d88b931)
-![image](https://github.com/user-attachments/assets/aa47ecf5-378d-430e-af0e-eeff925b010f)
-![image](https://github.com/user-attachments/assets/7ede338d-acda-4276-ae80-deade3b4070b)
-![image](https://github.com/user-attachments/assets/a6e303ba-4d78-4cfd-b30b-25f382da2dd6)
+## Services
 
+- `gateway`: public web entry point, EJS rendering, Cloudinary uploads, service composition.
+- `auth-service`: user registration, login, refresh tokens, JWT validation.
+- `listing-service`: listing CRUD, listing search, ownership checks, Mapbox geocoding.
+- `booking-service`: booking creation, cancellation, owner/guest booking reads, Kafka event publishing.
+- `review-service`: review creation/deletion and listing review reads.
+- `notification-service`: consumes booking events and stores owner notifications.
+- `redpanda`: Kafka-compatible broker for local/EC2 deployment.
 
+## Tech Stack
 
+- Node.js
+- Express
+- EJS
+- MongoDB Atlas
+- Mongoose
+- gRPC with `@grpc/grpc-js`
+- Redpanda/Kafka with `kafkajs`
+- Docker and Docker Compose
+- Cloudinary for listing images
+- Mapbox for geocoding
+- Kubernetes manifests prepared for future managed-cluster deployment
 
+## Database Design
 
----
+The app uses one MongoDB Atlas cluster with multiple service-owned databases:
 
-## **Future Enhancements**
-- ⭐ Implement a **host dashboard** for property management.
-- ⭐ Add **payment gateway integration**.
-- ⭐ Include advanced filtering options (e.g., amenities, pet-friendly stays).
-- ⭐ Optimize SEO for better visibility.
+```text
+auth-db
+listing-db
+booking-db
+review-db
+notification-db
+```
 
----
+Services do not fall back to a shared monolith database. Each service requires its own `*_DB_URL`.
 
+## Local Or EC2 Docker Compose
 
+Create ignored service env files:
 
-## **License**
+```text
+services/gateway/.env
+services/auth-service/.env
+services/listing-service/.env
+services/booking-service/.env
+services/review-service/.env
+services/notification-service/.env
+```
+
+Start the stack:
+
+```bash
+docker compose up --build -d
+docker compose ps
+```
+
+Stop:
+
+```bash
+docker compose down
+```
+
+Avoid deleting volumes unless intentional:
+
+```bash
+docker compose down -v
+```
+
+## Required Environment Variables
+
+Gateway:
+
+```env
+CLOUD_NAME=
+CLOUD_API_KEY=
+CLOUD_API_SCRETE=
+MAP_TOKEN=
+SCRETE=
+JWT_SECRET=
+COOKIE_SECURE=false
+AUTH_SERVICE_URL=auth-service:50051
+LISTING_SERVICE_URL=listing-service:50052
+BOOKING_SERVICE_URL=booking-service:50053
+REVIEW_SERVICE_URL=review-service:50054
+NOTIFICATION_SERVICE_URL=notification-service:50055
+```
+
+Services:
+
+```env
+AUTH_DB_URL=
+LISTING_DB_URL=
+BOOKING_DB_URL=
+REVIEW_DB_URL=
+NOTIFICATION_DB_URL=
+KAFKA_BROKERS=kafka:29092
+KAFKA_ENABLED=true
+```
+
+`MAP_TOKEN` is also required by `listing-service`.
+
+## Data Migration
+
+A copy-only Atlas migration script is available:
+
+```bash
+npm run migrate:atlas:dry-run
+npm run migrate:atlas
+```
+
+The script copies existing collections into service-owned Atlas databases while preserving `_id` values. It does not delete source data.
+
+## Kubernetes Work
+
+Kubernetes resources live in:
+
+```text
+infra/k8s
+```
+
+They include:
+
+- Namespace
+- ConfigMap
+- Secret example
+- Gateway LoadBalancer service
+- Internal ClusterIP services
+- Deployments
+- Redpanda deployment
+- HPAs with 90% CPU target
+
+These manifests were prepared for OCI/OKE first. Because Oracle free-tier A1 capacity was unavailable in the selected region, Kubernetes deployment was paused and AWS EC2 Docker Compose was used for the live cloud deployment.
+
+The intended future Kubernetes architecture is:
+
+```text
+Load Balancer
+  -> Gateway pods
+  -> ClusterIP services
+  -> Auth/Listings/Bookings/Reviews/Notifications pods
+  -> MongoDB Atlas
+
+Booking pods
+  -> Managed Kafka/Redpanda
+  -> Notification consumer pods
+
+HPA
+  -> scale pods by CPU and later Kafka lag
+```
+
+## Deployment Docs
+
+- AWS EC2 Docker Compose: `docs/aws-ec2-docker-compose-deployment.md`
+- Oracle Kubernetes plan: `docs/oracle-cloud-kubernetes-deployment.md`
+- Migration plan: `microservices-migration-plan.md`
+
+## Features
+
+- Browse stays
+- Search listings by location/country
+- Host listing creation and management
+- Cloudinary image upload
+- User signup/login with JWT cookies
+- Booking creation and cancellation
+- Guest booking history
+- Owner booking notifications
+- Reviews and ratings
+
+## Project Notes
+
+This repo intentionally shows the migration path from monolith to microservices. The current production-like deployment is Docker Compose on EC2, while the Kubernetes design is prepared for a future managed Kubernetes environment when budget and cloud capacity allow it.
+
+## License
+
 This project is licensed under the [MIT License](LICENSE).
 
----
-Made by Manoj
-   - with help of Apna College
+Made by Manoj.
