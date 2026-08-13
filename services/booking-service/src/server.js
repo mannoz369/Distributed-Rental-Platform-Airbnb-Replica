@@ -3,10 +3,15 @@ const env = require("./config/env.js");
 const connectDB = require("./config/db.js");
 const { createServer } = require("./grpc.js");
 const { connectBookingEventProducer, disconnectBookingEventProducer } = require("./booking.events.js");
+const resolveMongoUrl = require("../../shared/resolveMongoUrl.js");
 
 const host = env.BOOKING_SERVICE_HOST || "0.0.0.0";
 const port = env.BOOKING_SERVICE_PORT || "50053";
-const mongoUrl = env.BOOKING_DB_URL || env.ATLASDB_URL;
+const mongoUrl = resolveMongoUrl({
+  env,
+  serviceName: "Booking Service",
+  serviceEnvKey: "BOOKING_DB_URL",
+});
 const address = `${host}:${port}`;
 
 const start = async () => {

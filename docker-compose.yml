@@ -1,4 +1,155 @@
 services:
+  gateway:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: airbnb-replica-gateway
+    env_file:
+      - path: services/gateway/.env
+        required: false
+    environment:
+      NODE_ENV: production
+      AUTH_SERVICE_URL: auth-service:50051
+      LISTING_SERVICE_URL: listing-service:50052
+      BOOKING_SERVICE_URL: booking-service:50053
+      REVIEW_SERVICE_URL: review-service:50054
+      NOTIFICATION_SERVICE_URL: notification-service:50055
+      KAFKA_BROKERS: kafka:29092
+      COOKIE_SECURE: "false"
+    ports:
+      - "8080:8080"
+    depends_on:
+      auth-service:
+        condition: service_healthy
+      listing-service:
+        condition: service_healthy
+      booking-service:
+        condition: service_healthy
+      review-service:
+        condition: service_healthy
+      notification-service:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "node -e \"const net=require('net'); const s=net.connect(8080,'127.0.0.1',()=>process.exit(0)); s.on('error',()=>process.exit(1)); setTimeout(()=>process.exit(1),2000);\""]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+
+  auth-service:
+    build:
+      context: .
+      dockerfile: services/auth-service/Dockerfile
+    container_name: airbnb-replica-auth-service
+    env_file:
+      - path: services/auth-service/.env
+        required: false
+    environment:
+      NODE_ENV: production
+      AUTH_SERVICE_HOST: 0.0.0.0
+      AUTH_SERVICE_PORT: 50051
+    ports:
+      - "50051:50051"
+    healthcheck:
+      test: ["CMD-SHELL", "node -e \"const net=require('net'); const s=net.connect(process.env.AUTH_SERVICE_PORT||50051,'127.0.0.1',()=>process.exit(0)); s.on('error',()=>process.exit(1)); setTimeout(()=>process.exit(1),2000);\""]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+
+  listing-service:
+    build:
+      context: .
+      dockerfile: services/listing-service/Dockerfile
+    container_name: airbnb-replica-listing-service
+    env_file:
+      - path: services/listing-service/.env
+        required: false
+    environment:
+      NODE_ENV: production
+      LISTING_SERVICE_HOST: 0.0.0.0
+      LISTING_SERVICE_PORT: 50052
+    ports:
+      - "50052:50052"
+    healthcheck:
+      test: ["CMD-SHELL", "node -e \"const net=require('net'); const s=net.connect(process.env.LISTING_SERVICE_PORT||50052,'127.0.0.1',()=>process.exit(0)); s.on('error',()=>process.exit(1)); setTimeout(()=>process.exit(1),2000);\""]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+
+  booking-service:
+    build:
+      context: .
+      dockerfile: services/booking-service/Dockerfile
+    container_name: airbnb-replica-booking-service
+    env_file:
+      - path: services/booking-service/.env
+        required: false
+    environment:
+      NODE_ENV: production
+      BOOKING_SERVICE_HOST: 0.0.0.0
+      BOOKING_SERVICE_PORT: 50053
+      LISTING_SERVICE_URL: listing-service:50052
+      KAFKA_BROKERS: kafka:29092
+    ports:
+      - "50053:50053"
+    depends_on:
+      kafka:
+        condition: service_healthy
+      listing-service:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "node -e \"const net=require('net'); const s=net.connect(process.env.BOOKING_SERVICE_PORT||50053,'127.0.0.1',()=>process.exit(0)); s.on('error',()=>process.exit(1)); setTimeout(()=>process.exit(1),2000);\""]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+
+  review-service:
+    build:
+      context: .
+      dockerfile: services/review-service/Dockerfile
+    container_name: airbnb-replica-review-service
+    env_file:
+      - path: services/review-service/.env
+        required: false
+    environment:
+      NODE_ENV: production
+      REVIEW_SERVICE_HOST: 0.0.0.0
+      REVIEW_SERVICE_PORT: 50054
+      LISTING_SERVICE_URL: listing-service:50052
+    ports:
+      - "50054:50054"
+    depends_on:
+      listing-service:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "node -e \"const net=require('net'); const s=net.connect(process.env.REVIEW_SERVICE_PORT||50054,'127.0.0.1',()=>process.exit(0)); s.on('error',()=>process.exit(1)); setTimeout(()=>process.exit(1),2000);\""]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+
+  notification-service:
+    build:
+      context: .
+      dockerfile: services/notification-service/Dockerfile
+    container_name: airbnb-replica-notification-service
+    env_file:
+      - path: services/notification-service/.env
+        required: false
+    environment:
+      NODE_ENV: production
+      NOTIFICATION_SERVICE_HOST: 0.0.0.0
+      NOTIFICATION_SERVICE_PORT: 50055
+      KAFKA_BROKERS: kafka:29092
+    ports:
+      - "50055:50055"
+    depends_on:
+      kafka:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "node -e \"const net=require('net'); const s=net.connect(process.env.NOTIFICATION_SERVICE_PORT||50055,'127.0.0.1',()=>process.exit(0)); s.on('error',()=>process.exit(1)); setTimeout(()=>process.exit(1),2000);\""]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+
   kafka:
     image: redpandadata/redpanda:v24.3.7
     container_name: airbnb-replica-kafka

@@ -7,27 +7,14 @@ const ExpressErrors = require("./shared/errors/ExpressErros.js");
 const session = require("express-session");
 const flash = require("connect-flash");
 const env = require("./config/env.js");
-const connectDB = require("./config/db.js");
 const authMiddleware = require("./domains/auth/auth.middleware.js");
 const notificationService = require("./domains/notifications/notification.service.js");
-require("./domains/auth/user.model.js");
-require("./domains/listings/listing.model.js");
 
 const listingRoute = require("./domains/listings/listing.routes.js");
 const reviewRoute = require("./domains/reviews/review.routes.js");
 const userRoute = require("./domains/auth/auth.routes.js");
 const bookingRoute = require("./domains/bookings/booking.routes.js");
 
-// const mongo_url = "mongodb://localhost:27017/wanderlust";
-const dbURL = env.ATLASDB_URL;
-
-
-
-connectDB(dbURL).then(()=>{
-    console.log("Connected to DB");
-}).catch((err)=>{
-    console.log(err);
-});
 //middleware
 app.set("view engine", "ejs");
 app.set("views", path.join(__dirname, "../views"));

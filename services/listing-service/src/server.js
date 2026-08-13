@@ -2,10 +2,15 @@ const grpc = require("@grpc/grpc-js");
 const env = require("./config/env.js");
 const connectDB = require("./config/db.js");
 const { createServer } = require("./grpc.js");
+const resolveMongoUrl = require("../../shared/resolveMongoUrl.js");
 
 const host = env.LISTING_SERVICE_HOST || "0.0.0.0";
 const port = env.LISTING_SERVICE_PORT || "50052";
-const mongoUrl = env.LISTING_DB_URL || env.ATLASDB_URL;
+const mongoUrl = resolveMongoUrl({
+  env,
+  serviceName: "Listing Service",
+  serviceEnvKey: "LISTING_DB_URL",
+});
 const address = `${host}:${port}`;
 
 const start = async () => {

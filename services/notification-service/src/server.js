@@ -3,10 +3,15 @@ const env = require("./config/env.js");
 const connectDB = require("./config/db.js");
 const { createServer } = require("./grpc.js");
 const { startNotificationConsumer, stopNotificationConsumer } = require("./kafka.consumer.js");
+const resolveMongoUrl = require("../../shared/resolveMongoUrl.js");
 
 const host = env.NOTIFICATION_SERVICE_HOST || "0.0.0.0";
 const port = env.NOTIFICATION_SERVICE_PORT || "50055";
-const mongoUrl = env.NOTIFICATION_DB_URL || env.ATLASDB_URL;
+const mongoUrl = resolveMongoUrl({
+  env,
+  serviceName: "Notification Service",
+  serviceEnvKey: "NOTIFICATION_DB_URL",
+});
 const address = `${host}:${port}`;
 
 const start = async () => {

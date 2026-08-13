@@ -2,10 +2,15 @@ const grpc = require("@grpc/grpc-js");
 const env = require("./config/env.js");
 const connectDB = require("./config/db.js");
 const { createServer } = require("./grpc.js");
+const resolveMongoUrl = require("../../shared/resolveMongoUrl.js");
 
 const host = env.AUTH_SERVICE_HOST || "0.0.0.0";
 const port = env.AUTH_SERVICE_PORT || "50051";
-const mongoUrl = env.AUTH_DB_URL || env.ATLASDB_URL;
+const mongoUrl = resolveMongoUrl({
+  env,
+  serviceName: "Auth Service",
+  serviceEnvKey: "AUTH_DB_URL",
+});
 const address = `${host}:${port}`;
 
 const start = async () => {

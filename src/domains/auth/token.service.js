@@ -97,10 +97,18 @@ const issueTokenPair = (user) => ({
   ),
 });
 
+const useSecureCookies = () => {
+  if (typeof env.COOKIE_SECURE === "string") {
+    return env.COOKIE_SECURE === "true";
+  }
+
+  return env.NODE_ENV === "production";
+};
+
 const cookieOptions = (maxAgeSeconds) => ({
   httpOnly: true,
   sameSite: "lax",
-  secure: env.NODE_ENV === "production",
+  secure: useSecureCookies(),
   maxAge: maxAgeSeconds * 1000,
 });
 

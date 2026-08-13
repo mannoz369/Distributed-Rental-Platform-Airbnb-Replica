@@ -1059,16 +1059,23 @@ Include:
 - `review-service`
 - `notification-service`
 - `kafka`
-- `mongo-auth`
-- `mongo-listing`
-- `mongo-booking`
-- `mongo-review`
-- `mongo-notification`
 
 Optional:
 
 - `kafka-ui`
-- `mongo-express`
+
+Database deployment choice:
+
+- Use MongoDB Atlas for all service-owned databases.
+- Do not run MongoDB containers in Docker Compose for this project.
+- Each service must receive an explicit Atlas URL with its own database name:
+  - `AUTH_DB_URL`
+  - `LISTING_DB_URL`
+  - `BOOKING_DB_URL`
+  - `REVIEW_DB_URL`
+  - `NOTIFICATION_DB_URL`
+- In production or Docker, services must fail fast if their service-specific DB URL is missing. They should not silently fall back to the monolith `ATLASDB_URL`.
+- The current monolith database remains untouched until a separate, backup-first migration step is planned.
 
 ### Per-Service Requirements
 
@@ -1096,8 +1103,20 @@ Each service should have:
 - `docker compose up` starts the local platform.
 - Gateway can reach all services.
 - Services can reach Kafka.
-- Each service connects only to its own database.
+- Each service connects only to its own Atlas database.
 - Health checks pass.
+
+### Phase 9 Implementation Notes
+
+Implemented on 2026-08-13:
+
+- Added Dockerfiles for the Gateway and the five extracted services.
+- Updated Docker Compose to run Gateway, Auth, Listing, Booking, Review, Notification, Redpanda Kafka, and Kafka UI.
+- Chose MongoDB Atlas databases instead of local MongoDB containers.
+- Added service-specific Atlas DB URLs to `.env.example`; local service-specific `.env` files are supported but ignored by git.
+- Added a shared Mongo URL resolver so services require their own `*_DB_URL` and cannot accidentally write to the generic monolith `ATLASDB_URL`.
+- Added TCP-based container health checks for the Gateway and gRPC services.
+- Added a copy-only Atlas migration script that preserves `_id` values and upserts existing collections into service-owned databases.
 
 ## Phase 10: Add Kubernetes
 
