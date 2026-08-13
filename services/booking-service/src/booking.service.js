@@ -1,5 +1,6 @@
 const Booking = require("./booking.model.js");
 const listingGrpcClient = require("./listing.grpc-client.js");
+const bookingEvents = require("./booking.events.js");
 
 const calculateBookingTotals = (nightlyPrice, nights) => {
   const subtotalPrice = nights * nightlyPrice;
@@ -119,6 +120,7 @@ const createBooking = async ({ listingId, guestId, guestName, guestEmail, checkI
   });
 
   await booking.save();
+  await bookingEvents.publishBookingCreated(booking);
   return booking;
 };
 
@@ -181,6 +183,7 @@ const cancelBooking = async ({ bookingId, requesterId }) => {
   booking.status = "cancelled";
   booking.ownerSeen = false;
   await booking.save();
+  await bookingEvents.publishBookingCancelled(booking);
   return booking;
 };
 

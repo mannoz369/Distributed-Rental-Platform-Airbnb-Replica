@@ -1,0 +1,41 @@
+services:
+  kafka:
+    image: redpandadata/redpanda:v24.3.7
+    container_name: airbnb-replica-kafka
+    command:
+      - redpanda
+      - start
+      - --mode=dev-container
+      - --smp=1
+      - --memory=512M
+      - --reserve-memory=0M
+      - --overprovisioned
+      - --node-id=0
+      - --check=false
+      - --kafka-addr=PLAINTEXT://0.0.0.0:9092,DOCKER://0.0.0.0:29092
+      - --advertise-kafka-addr=PLAINTEXT://localhost:9092,DOCKER://kafka:29092
+    ports:
+      - "9092:9092"
+      - "9644:9644"
+    volumes:
+      - kafka-data:/var/lib/redpanda/data
+    healthcheck:
+      test: ["CMD-SHELL", "rpk cluster health | grep -E 'Healthy:.+true'"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+
+  kafka-ui:
+    image: provectuslabs/kafka-ui:v0.7.2
+    container_name: airbnb-replica-kafka-ui
+    depends_on:
+      kafka:
+        condition: service_healthy
+    environment:
+      KAFKA_CLUSTERS_0_NAME: local
+      KAFKA_CLUSTERS_0_BOOTSTRAPSERVERS: kafka:29092
+    ports:
+      - "8085:8080"
+
+volumes:
+  kafka-data:

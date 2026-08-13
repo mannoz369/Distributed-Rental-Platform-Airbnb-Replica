@@ -1,4 +1,5 @@
 const bookingService = require("./booking.service.js");
+const notificationService = require("../notifications/notification.service.js");
 
 module.exports.createBooking = async (req, res) => {
   const { id } = req.params;
@@ -99,6 +100,10 @@ module.exports.ownerBookingDetails = async (req, res) => {
   const seenBooking = await bookingService.markBookingSeen({
     bookingId: req.params.bookingId,
     requesterId: req.user._id,
+  });
+  await notificationService.markBookingNotificationsSeen({
+    ownerId: req.user._id,
+    bookingId: req.params.bookingId,
   });
   await bookingService.ensureBookingTotals(seenBooking || booking);
 

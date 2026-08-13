@@ -2,18 +2,19 @@ const grpc = require("@grpc/grpc-js");
 const env = require("./config/env.js");
 const connectDB = require("./config/db.js");
 const { createServer } = require("./grpc.js");
-const { connectBookingEventProducer, disconnectBookingEventProducer } = require("./booking.events.js");
+const { startNotificationConsumer, stopNotificationConsumer } = require("./kafka.consumer.js");
 
-const host = env.BOOKING_SERVICE_HOST || "0.0.0.0";
-const port = env.BOOKING_SERVICE_PORT || "50053";
-const mongoUrl = env.BOOKING_DB_URL || env.ATLASDB_URL;
+const host = env.NOTIFICATION_SERVICE_HOST || "0.0.0.0";
+const port = env.NOTIFICATION_SERVICE_PORT || "50055";
+const mongoUrl = env.NOTIFICATION_DB_URL || env.ATLASDB_URL;
 const address = `${host}:${port}`;
 
 const start = async () => {
   await connectDB(mongoUrl);
-  await connectBookingEventProducer().catch((err) => {
-    console.error("Booking Service Kafka producer unavailable:", err.message);
+  await startNotificationConsumer().catch((err) => {
+    console.error("Notification Service Kafka consumer unavailable:", err.message);
   });
+
   const server = createServer();
 
   server.bindAsync(address, grpc.ServerCredentials.createInsecure(), (err, boundPort) => {
@@ -23,7 +24,7 @@ const start = async () => {
     }
 
     server.start();
-    console.log(`Booking Service gRPC server listening on ${host}:${boundPort}`);
+    console.log(`Notification Service gRPC server listening on ${host}:${boundPort}`);
   });
 
   const shutdown = () => {
@@ -33,7 +34,7 @@ const start = async () => {
         process.exit(1);
       }
 
-      await disconnectBookingEventProducer().catch((disconnectErr) => {
+      await stopNotificationConsumer().catch((disconnectErr) => {
         console.error(disconnectErr);
       });
       process.exit(0);
