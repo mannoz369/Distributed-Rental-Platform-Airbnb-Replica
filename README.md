@@ -3,6 +3,7 @@
 Wanderlust is an Airbnb-style booking application that began as an Express, EJS, MongoDB, and Mongoose monolith. The project has now been migrated into a production-oriented microservices system with containerized services, service-owned MongoDB Atlas databases, gRPC contracts, Kafka-compatible booking events, and cloud deployment documentation.
 
 The original app supported browsing listings, host listing management, authentication, reviews, Cloudinary images, and Mapbox-powered locations. This branch extends that foundation with bookings, owner notifications, service extraction, Docker Compose deployment, Kubernetes manifests, and migration tooling.
+
 Live - http://13.53.140.232:8080/listings
 
 ## What We Achieved
