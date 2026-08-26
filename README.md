@@ -1,14 +1,29 @@
 # Wanderlust Airbnb Replica
 
-Wanderlust is an Airbnb-style booking application that started as an Express, EJS, MongoDB, and Mongoose monolith and has been migrated toward a microservices architecture.
+Wanderlust is an Airbnb-style booking application that began as an Express, EJS, MongoDB, and Mongoose monolith. The project has now been migrated into a production-oriented microservices system with containerized services, service-owned MongoDB Atlas databases, gRPC contracts, Kafka-compatible booking events, and cloud deployment documentation.
 
-The project now runs as a set of containerized services behind a gateway, with service-owned MongoDB Atlas databases, gRPC service communication, and Kafka-compatible booking events through Redpanda.
+The original app supported browsing listings, host listing management, authentication, reviews, Cloudinary images, and Mapbox-powered locations. This branch extends that foundation with bookings, owner notifications, service extraction, Docker Compose deployment, Kubernetes manifests, and migration tooling.
+
+## What We Achieved
+
+- Migrated the monolith into a gateway plus five backend services: auth, listing, booking, review, and notification.
+- Moved service communication behind shared gRPC proto contracts in `packages/proto`.
+- Added booking creation, cancellation, guest booking history, owner booking views, and owner notifications.
+- Added Redpanda/Kafka event publishing from the booking service and notification consumption in the notification service.
+- Split MongoDB Atlas usage into service-owned databases instead of relying on one shared monolith database.
+- Added Dockerfiles for every runtime service and a full `docker-compose.yml` stack with health checks.
+- Prepared Kubernetes manifests under `infra/k8s` for a future managed-cluster deployment.
+- Documented the AWS EC2 Docker Compose deployment and the Oracle Cloud Kubernetes deployment attempt.
+- Added a copy-only Atlas migration script for moving existing data into service-owned databases.
+- Reorganized gateway code into domain modules under `src/domains` with shared middleware, errors, config, and gRPC clients.
+- Added architecture, service-flow, gRPC-contract, deployment, migration, and decision documentation.
+- Added benchmark scripts for listing-service gRPC calls and Kafka booking-event throughput.
 
 ## Current Status
 
 The application is deployed on AWS EC2 using Docker Compose.
 
-This deployment runs the same service topology that was tested locally:
+This deployment runs the same topology that was tested locally:
 
 ```text
 EC2 instance
@@ -29,18 +44,18 @@ MongoDB Atlas
   notification-db
 ```
 
-Kubernetes manifests were designed for Oracle Cloud Infrastructure Kubernetes Engine in `infra/k8s`, including Deployments, ClusterIP services, a gateway LoadBalancer, Redpanda, and HPA definitions. Oracle Cloud Always Free node provisioning failed because the selected region had no available `VM.Standard.A1.Flex` capacity, so the live deployment was moved to AWS EC2.
+Kubernetes manifests were designed for Oracle Cloud Infrastructure Kubernetes Engine in `infra/k8s`, including Deployments, ClusterIP services, a gateway LoadBalancer, Redpanda, and HPA definitions. Oracle Cloud Always Free node provisioning failed because the selected region had no available `VM.Standard.A1.Flex` capacity, so the live deployment moved to AWS EC2 with Docker Compose.
 
 ## Architecture
 
 ```text
 Browser
   -> Gateway
-  -> Auth Service
-  -> Listing Service
-  -> Booking Service
-  -> Review Service
-  -> Notification Service
+      -> Auth Service over gRPC
+      -> Listing Service over gRPC
+      -> Booking Service over gRPC
+      -> Review Service over gRPC
+      -> Notification Service over gRPC
 
 Booking Service
   -> Redpanda/Kafka booking events
@@ -50,49 +65,66 @@ Each service
   -> its own MongoDB Atlas database
 ```
 
-The gateway no longer connects directly to MongoDB. It renders the EJS UI and calls backend services through gRPC clients.
+The gateway renders the EJS UI and composes backend responses through gRPC clients. It no longer connects directly to MongoDB for the migrated service flows.
 
 ## Services
 
-- `gateway`: public web entry point, EJS rendering, Cloudinary uploads, service composition.
-- `auth-service`: user registration, login, refresh tokens, JWT validation.
-- `listing-service`: listing CRUD, listing search, ownership checks, Mapbox geocoding.
-- `booking-service`: booking creation, cancellation, owner/guest booking reads, Kafka event publishing.
-- `review-service`: review creation/deletion and listing review reads.
-- `notification-service`: consumes booking events and stores owner notifications.
-- `redpanda`: Kafka-compatible broker for local/EC2 deployment.
+- `gateway`: public web entry point, EJS rendering, Cloudinary uploads, session/JWT cookie handling, and service composition.
+- `auth-service`: user registration, login, refresh tokens, JWT validation, and user lookups.
+- `listing-service`: listing CRUD, search, ownership checks, and Mapbox geocoding.
+- `booking-service`: booking creation, cancellation, owner/guest booking reads, listing availability checks, and Kafka event publishing.
+- `review-service`: review creation, deletion, and listing review reads.
+- `notification-service`: booking-event consumer, owner notification storage, and notification reads.
+- `redpanda`: Kafka-compatible broker used by local and EC2 Docker Compose deployments.
+
+## Features
+
+- Browse stays and view listing details.
+- Search listings by location or country.
+- Sign up, log in, and maintain authenticated sessions.
+- Create, edit, and delete owned listings.
+- Upload listing images through Cloudinary.
+- View listing locations through Mapbox.
+- Create and cancel bookings.
+- View guest booking history.
+- View owner bookings and booking notifications.
+- Create and delete listing reviews with ratings.
 
 ## Tech Stack
 
-- Node.js
+- Node.js 20
 - Express
-- EJS
+- EJS and EJS Mate
 - MongoDB Atlas
 - Mongoose
-- gRPC with `@grpc/grpc-js`
+- gRPC with `@grpc/grpc-js` and `@grpc/proto-loader`
 - Redpanda/Kafka with `kafkajs`
 - Docker and Docker Compose
+- Kubernetes manifests with Kustomize
 - Cloudinary for listing images
-- Mapbox for geocoding
-- Kubernetes manifests prepared for future managed-cluster deployment
+- Mapbox for geocoding and maps
+- GitHub Actions for multi-architecture Docker image builds
 
-## Database Design
-
-The app uses one MongoDB Atlas cluster with multiple service-owned databases:
+## Repository Layout
 
 ```text
-auth-db
-listing-db
-booking-db
-review-db
-notification-db
+app.js                         Gateway entry point
+src/app.js                     Gateway app composition
+src/domains                    Gateway domain controllers, services, routes, validation, and gRPC clients
+services/*                     Standalone backend microservices
+packages/proto                 Shared gRPC contracts
+packages/common                Shared Kafka, auth-context, logger, and error notes
+views                          EJS pages and partials
+public                         CSS and browser JavaScript
+scripts                        Migration and benchmark utilities
+docs                           Architecture, flow, and deployment documentation
+infra/k8s                      Kubernetes resources
+docker-compose.yml             Local/EC2 service stack
 ```
 
-Services do not fall back to a shared monolith database. Each service requires its own `*_DB_URL`.
+## Environment
 
-## Local Or EC2 Docker Compose
-
-Create ignored service env files:
+Start from `.env.example` and create ignored service env files:
 
 ```text
 services/gateway/.env
@@ -103,28 +135,7 @@ services/review-service/.env
 services/notification-service/.env
 ```
 
-Start the stack:
-
-```bash
-docker compose up --build -d
-docker compose ps
-```
-
-Stop:
-
-```bash
-docker compose down
-```
-
-Avoid deleting volumes unless intentional:
-
-```bash
-docker compose down -v
-```
-
-## Required Environment Variables
-
-Gateway:
+Gateway variables:
 
 ```env
 CLOUD_NAME=
@@ -141,7 +152,7 @@ REVIEW_SERVICE_URL=review-service:50054
 NOTIFICATION_SERVICE_URL=notification-service:50055
 ```
 
-Services:
+Service variables:
 
 ```env
 AUTH_DB_URL=
@@ -153,7 +164,67 @@ KAFKA_BROKERS=kafka:29092
 KAFKA_ENABLED=true
 ```
 
-`MAP_TOKEN` is also required by `listing-service`.
+`MAP_TOKEN` is also required by `listing-service` because listing creation performs geocoding.
+
+## Run With Docker Compose
+
+Build and start the full stack:
+
+```bash
+npm run compose:up
+```
+
+Or run Docker Compose directly:
+
+```bash
+docker compose up --build -d
+docker compose ps
+```
+
+Open the gateway on:
+
+```text
+http://localhost:8080/listings
+```
+
+Kafka UI is available when the stack is running:
+
+```text
+http://localhost:8085
+```
+
+Stop the stack:
+
+```bash
+npm run compose:down
+```
+
+Avoid deleting Docker volumes unless you intentionally want to remove Redpanda data:
+
+```bash
+docker compose down -v
+```
+
+## Run Services Manually
+
+Install dependencies:
+
+```bash
+npm install
+```
+
+Start services in separate terminals after configuring local env values:
+
+```bash
+npm run auth-service
+npm run listing-service
+npm run booking-service
+npm run review-service
+npm run notification-service
+npm start
+```
+
+For manual local runs, service URLs usually point to `localhost` ports and `KAFKA_BROKERS` usually points to `localhost:9092`.
 
 ## Data Migration
 
@@ -164,28 +235,71 @@ npm run migrate:atlas:dry-run
 npm run migrate:atlas
 ```
 
-The script copies existing collections into service-owned Atlas databases while preserving `_id` values. It does not delete source data.
+The script copies existing monolith collections into service-owned Atlas databases while preserving `_id` values. It does not delete source data.
+
+Required migration variables:
+
+```env
+MIGRATION_SOURCE_DB_URL=
+AUTH_DB_URL=
+LISTING_DB_URL=
+BOOKING_DB_URL=
+REVIEW_DB_URL=
+NOTIFICATION_DB_URL=
+```
+
+## Benchmarks
+
+The branch includes lightweight benchmarking scripts for the new service communication paths.
+
+Listing gRPC benchmark:
+
+```bash
+node scripts/bench-grpc-listings.js
+```
+
+Useful overrides:
+
+```bash
+GRPC_TARGET=localhost:50052 CONCURRENCY=200 DURATION=60 DEADLINE_MS=10000 node scripts/bench-grpc-listings.js
+```
+
+Kafka booking-event benchmark:
+
+```bash
+node scripts/bench-kafka-booking-events.js
+```
+
+Useful overrides:
+
+```bash
+KAFKA_BROKERS=localhost:9092 MESSAGES=1000 BATCH_SIZE=100 node scripts/bench-kafka-booking-events.js
+```
 
 ## Kubernetes Work
 
-Kubernetes resources live in:
-
-```text
-infra/k8s
-```
-
-They include:
+Kubernetes resources live in `infra/k8s` and include:
 
 - Namespace
 - ConfigMap
 - Secret example
 - Gateway LoadBalancer service
 - Internal ClusterIP services
-- Deployments
+- Service Deployments
 - Redpanda deployment
 - HPAs with 90% CPU target
 
-These manifests were prepared for OCI/OKE first. Because Oracle free-tier A1 capacity was unavailable in the selected region, Kubernetes deployment was paused and AWS EC2 Docker Compose was used for the live cloud deployment.
+Apply the manifests:
+
+```bash
+npm run k8s:apply
+```
+
+Delete them:
+
+```bash
+npm run k8s:delete
+```
 
 The intended future Kubernetes architecture is:
 
@@ -197,34 +311,33 @@ Load Balancer
   -> MongoDB Atlas
 
 Booking pods
-  -> Managed Kafka/Redpanda
+  -> Managed Kafka or Redpanda
   -> Notification consumer pods
 
 HPA
   -> scale pods by CPU and later Kafka lag
 ```
 
-## Deployment Docs
+## Documentation
 
-- AWS EC2 Docker Compose: `docs/aws-ec2-docker-compose-deployment.md`
-- Oracle Kubernetes plan: `docs/oracle-cloud-kubernetes-deployment.md`
-- Migration plan: `microservices-migration-plan.md`
+- `microservices-migration-plan.md`: full migration plan and phased work.
+- `booking-feature-spec.md`: booking feature scope and implementation notes.
+- `docs/auth-service-flow.md`: auth service execution flow.
+- `docs/listing-service-flow.md`: listing service execution flow.
+- `docs/booking-service-flow.md`: booking service execution flow.
+- `docs/review-service-flow.md`: review service execution flow.
+- `docs/grpc-contract-flow.md`: shared gRPC contract flow.
+- `docs/aws-ec2-docker-compose-deployment.md`: EC2 deployment steps.
+- `docs/oracle-cloud-kubernetes-deployment.md`: OCI Kubernetes plan and capacity result.
+- `infra/k8s/README.md`: Kubernetes manifest notes.
+- `Decision.md`: decision log for meaningful implementation choices.
+- `FLOW.MD`: project execution-flow documentation standard.
 
-## Features
+## Deployment Notes
 
-- Browse stays
-- Search listings by location/country
-- Host listing creation and management
-- Cloudinary image upload
-- User signup/login with JWT cookies
-- Booking creation and cancellation
-- Guest booking history
-- Owner booking notifications
-- Reviews and ratings
+The current production-like deployment path is AWS EC2 with Docker Compose. The Kubernetes design remains ready for a future managed Kubernetes environment when cloud capacity and budget allow it.
 
-## Project Notes
-
-This repo intentionally shows the migration path from monolith to microservices. The current production-like deployment is Docker Compose on EC2, while the Kubernetes design is prepared for a future managed Kubernetes environment when budget and cloud capacity allow it.
+Docker image publishing is prepared through `.github/workflows/docker-images.yml`, which builds gateway and service images for `linux/amd64` and `linux/arm64` and pushes them to GitHub Container Registry on `main` pushes or manual workflow dispatch.
 
 ## License
 
